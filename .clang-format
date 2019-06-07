@@ -1,0 +1,27 @@
+BasedOnStyle: "LLVM"
+IndentWidth: 4
+---
+Language: Cpp
+
+DerivePointerAlignment: false
+PointerAlignment: Left
+SpacesInSquareBrackets: false
+UseTab: false
+AllowShortIfStatementsOnASingleLine: true
+IndentCaseLabels: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterEnum: false
+  AfterFunction: false
+  AfterClass: false
+  AfterControlStatement: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: false
+NamespaceIndentation: Inner
+ContinuationIndentWidth: 4
+IndentWidth: 4
+AccessModifierOffset: -4

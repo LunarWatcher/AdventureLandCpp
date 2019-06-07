@@ -1,0 +1,3 @@
+[submodule "VSConan"]
+	path = VSConan
+	url = https://github.com/lunarwatcher/vsconan

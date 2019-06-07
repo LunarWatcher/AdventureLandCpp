@@ -1,0 +1,9 @@
+bin/
+build/
+
+config.log
+.sconf_temp
+.sconsign.dblite
+
+vsInclude/
+DummyApp/

@@ -1,0 +1,12 @@
+-std=c++17
+-pedantic
+-Wall
+-Wextra
+-Wno-c++11-narrowing
+-Isrc/
+-IvsInclude/fmt
+-IvsInclude/jsonformoderncpp
+-IvsInclude/OpenSSL
+-IvsInclude/Poco
+-IvsInclude/spdlog
+-IvsInclude/zlib
