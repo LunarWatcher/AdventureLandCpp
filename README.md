@@ -12,6 +12,7 @@ conan profile update settings.compiler.libcxx=libstdc++11
 
 Visual Studio handles this differently - keep that in mind if you get undefined references. This project is, however, is written with Clang, and is untested with VS.
 
+This is a required step with Clang and possibly GCC to link some dependencies properly. If this is missing, these libraries cause issues with undefined references at compile time. The project itself builds around C++ 17.
 
 # Library developer setup
 
