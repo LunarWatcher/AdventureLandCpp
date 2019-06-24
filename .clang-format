@@ -2,13 +2,15 @@ BasedOnStyle: "LLVM"
 IndentWidth: 4
 ---
 Language: Cpp
-
+ColumnLimit: 120
 DerivePointerAlignment: false
 PointerAlignment: Left
 SpacesInSquareBrackets: false
 UseTab: false
 AllowShortIfStatementsOnASingleLine: true
 IndentCaseLabels: false
+ConstructorInitializerIndentWidth: 8
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterEnum: false
