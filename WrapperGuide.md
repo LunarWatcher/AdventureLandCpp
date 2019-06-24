@@ -52,7 +52,7 @@ Which brings me to my next part: error handling. If you get a JSON response wher
 Otherwise, you'll get a response like this:
 
 ```json
-[{"message": "Logged In!", "type": "message"}, {"html": "<lots of HTML omitted>", "type": "content"}}
+[{"message": "Logged In!", "type": "message"}, {"html": "<lots of HTML omitted>", "type": "content"}]
 ```
 
 You don't need anything here aside verification. The HTML doesn't provide you with any data you need, so all you need to do is check if you get a `ui_error` or not. If you do, login has failed. Otherwise, you're good.
@@ -80,7 +80,73 @@ Here, similarly to logging in, you need to pass a `method` in the form data, whi
 But if the cookie is passed and everything else is fine, you'll get a response similar to this:
 
 ```json
-
+[
+  {
+    "type": "servers_and_characters",
+    "tutorial": {
+      "progress": 100,
+      "step": 0,
+      "task": false,
+      "completed": []
+    },
+    "characters": [
+      {
+        "name": "ZoetheWolf",
+        "level": 68,
+        "gender": "female",
+        "online": 0,
+        "type": "ranger",
+        "id": "<id>"
+      },
+      {
+        "name": "Amethyst",
+        "level": 66,
+        "gender": "female",
+        "online": 0,
+        "type": "mage",
+        "id": "<id>"
+      }
+      <more in the same format>
+    ],
+    "servers": [
+      {
+        "players": 0,
+        "region": "ASIA",
+        "name": "I"
+      },
+      {
+        "players": 16,
+        "region": "EU",
+        "name": "I"
+      },
+      {
+        "players": 47,
+        "region": "EU",
+        "name": "II"
+      },
+      {
+        "players": 3,
+        "region": "EU",
+        "name": "PVP"
+      },
+      {
+        "players": 37,
+        "region": "US",
+        "name": "I"
+      },
+      {
+        "players": 23,
+        "region": "US",
+        "name": "II"
+      },
+      {
+        "players": 9,
+        "region": "US",
+        "name": "PVP"
+      }
+    ]
+  }
+]
 ```
 
-
+You can parse both the servers and characters by the current account from this. If you need runtime validation/re-checking servers, you can use the `get_servers` endpoint, as outlined in the ApiDocs file.
