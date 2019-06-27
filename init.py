@@ -18,7 +18,13 @@ if (len(packages) != 0):
     pipArgs = ["install"] + packages
     main(pipArgs)
 
-os.system("git submodule update --init --recursive")
+try: 
+
+    init = bool(input("Init submodules? (True/False): "))
+    if (init):
+        os.system("git submodule update --init --recursive")
+except:
+    print("Invalid input - skipping...")
 
 if not os.path.exists("build"):
     os.mkdir("build")
@@ -30,5 +36,11 @@ if (result != 0):
     raise Exception("Failed to install conan packages.");
 os.chdir("..");
 
-# Symlinks
-import VSConan.init
+
+try: 
+    init = bool(input("Create symlinks? (True/False): "))
+    if (init):
+        # Symlinks
+        import VSConan.init
+except:
+    print("Invalid input - skipping...")

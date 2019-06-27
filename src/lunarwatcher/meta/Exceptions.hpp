@@ -19,6 +19,8 @@ namespace advland {
 CREATE_EXCEPTION(LoginException)
 CREATE_EXCEPTION(EndpointException)
 
+CREATE_EXCEPTION(IllegalArgumentException)
+
 }
 
 #endif 

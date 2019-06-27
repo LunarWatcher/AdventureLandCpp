@@ -1,5 +1,6 @@
 #include "AdvLand.hpp"
 #include "meta/Exceptions.hpp"
+#include "meta/Typedefs.hpp"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
 
@@ -11,8 +12,13 @@ AdvLandClient::AdvLandClient(std::string email, std::string password)
                               "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH")) {
     login(email, password);
     collectGameData();
-    collectCharactersAndServers();
+    collectCharacters();
+    collectServers();
+
+    connectWebsocket();
 }
+
+AdvLandClient::~AdvLandClient() {}
 
 void AdvLandClient::login(std::string& email, std::string& password) {
 
@@ -27,6 +33,7 @@ void AdvLandClient::login(std::string& email, std::string& password) {
     if (result != 200) {
         throw LoginException("Failed to load index. Received code: " + std::to_string(result));
     }
+
     mLogger->debug("Connection established. Continuing with login");
 
     // Prepares the request
@@ -91,8 +98,8 @@ void AdvLandClient::collectGameData() {
     mLogger->info("Game data collected.");
 }
 
-void AdvLandClient::collectCharactersAndServers() {
-    mLogger->info("Collecting characters and servers...");
+void AdvLandClient::collectCharacters() {
+    mLogger->info("Collecting characters...");
     std::stringstream result;
     HTTPRequest request(HTTPRequest::HTTP_POST, "/api/servers_and_characters", HTTPMessage::HTTP_1_1);
     NameValueCollection collection;
@@ -104,21 +111,124 @@ void AdvLandClient::collectCharactersAndServers() {
     form.set("method", "servers_and_characters");
     form.set("arguments", "{}");
     form.prepareSubmit(request);
-
     form.write(session.sendRequest(request));
 
     std::istream& rawStream = session.receiveResponse(response);
     std::stringstream resultStream;
     Poco::StreamCopier::copyStream(rawStream, resultStream);
     std::string rawData = resultStream.str();
-    mLogger->info(rawData); 
     if (response.getStatus() != 200 || rawData.find("\"args\": [\"Not logged in.\"]") != std::string::npos) {
-        throw EndpointException("Failed to retrieve characters and servers: " + std::to_string(response.getStatus()) + "\n" + resultStream.str());
+        throw EndpointException("Failed to retrieve characters and servers (login issue): " +
+                                std::to_string(response.getStatus()) + "\n" + resultStream.str());
     }
-        
-    // TODO parse and store the info
-    mLogger->info("Successfully collected characters and servers.");
+
+    nlohmann::json data = nlohmann::json::parse(rawData);
+    if (data.size() > 0 && data[0].find("characters") != data[0].end()) {
+        parseCharacters(data[0]["characters"]);
+    } else {
+        throw EndpointException("Failed to find characters in response: " + rawData);
+    }
+
+    for (std::pair<std::string, std::string> p : this->characters) {
+        mLogger->info("User {}: {}", p.first, p.second);
+    }
+
+    mLogger->info("Successfully collected characters.");
+}
+
+void AdvLandClient::collectServers() {
+    std::stringstream result;
+    HTTPResponse response;
+
+    this->postRequest(result, response, "get_servers", "{}", true);
+    std::string rawData = result.str();
+
+    if (response.getStatus() != 200 || rawData.find("\"args\": [\"Not logged in.\"]") != std::string::npos) {
+        throw EndpointException("Failed to retrieve characters and servers (login issue): " +
+                                std::to_string(response.getStatus()) + "\n" + rawData);
+    } else if (rawData.length() == 0) {
+        throw EndpointException("Didn't receive any data?");
+    }
+
+    nlohmann::json data = nlohmann::json::parse(rawData);
+    for (auto& server : data[0]["message"]) {
+        std::string ip = server["ip"];
+        std::string clusterIdentifier = server["region"];
+        std::string serverIdentifier = server["name"];
+        std::string gameplay = server["gameplay"];
+        int port = server["port"];
+        bool pvp = false;
+        // Some of the responses are empty strings - the rest are non-string bools
+        if (server["pvp"].is_boolean()) {
+            pvp = server["pvp"];
+        }
+
+        Server parsedServer(serverIdentifier, ip, port, pvp, gameplay);
+
+        for (ServerCluster cluster : this->serverClusters) {
+            if (cluster.getRegion() == clusterIdentifier) {
+                if (cluster.hasServer(serverIdentifier)) {
+                    cluster.update(serverIdentifier, parsedServer);
+                } else
+                    cluster.addServer(parsedServer);
+
+                goto hasServerCluster;
+            }
+        }
+        {
+            ServerCluster cluster(clusterIdentifier);
+            cluster.addServer(parsedServer);
+            this->serverClusters.push_back(cluster);
+        }
+    hasServerCluster:
+        continue;
+    }
     
+}
+
+void AdvLandClient::postRequest(std::stringstream& out, HTTPResponse& response, std::string apiEndpoint,
+                                std::string arguments, bool auth, const std::vector<CookiePair>& formData) {
+    HTTPRequest request(HTTPRequest::HTTP_POST, std::string("/api/") + apiEndpoint, HTTPMessage::HTTP_1_1);
+    if (auth) {
+        NameValueCollection cookies;
+        cookies.add("auth", this->authToken);
+        request.setCookies(cookies);
+    }
+
+    HTMLForm form;
+    form.setEncoding(HTMLForm::ENCODING_MULTIPART);
+    // The endpoints that can use this method always sends a POST request with a form containing
+    // a method key with a value matching the endpoint name
+    form.set("method", apiEndpoint);
+    form.set("arguments", arguments);
+    if (formData.size() != 0) {
+        for (CookiePair p : formData) {
+            form.set(p.first, p.second);
+        }
+    }
+    form.prepareSubmit(request);
+    form.write(session.sendRequest(request));
+
+    std::istream& rawStream = session.receiveResponse(response);
+    Poco::StreamCopier::copyStream(rawStream, out);
+}
+
+void AdvLandClient::parseCharacters(nlohmann::json& data) {
+    // data should be a list containing maps with character data at this point
+    for (auto& node : data) {
+        // So iterate and grab the necessary data
+        std::string id = node["id"];
+        std::string name = node["name"];
+        std::pair<std::string, std::string> charPair = std::make_pair(id, name);
+        if (this->characters.size() == 0 ||
+            std::find(characters.begin(), characters.end(), charPair) == characters.end()) {
+            this->characters.push_back(charPair);
+        }
+    }
+}
+
+void AdvLandClient::connectWebsocket() {
+    // TODO figure out how the WS system works
 }
 
 } // namespace advland
