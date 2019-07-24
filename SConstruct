@@ -90,51 +90,21 @@ if(clang and platform is "windows"):
 if("LINK" in os.environ):
     env["LINK"] = os.environ["LINK"]
 
-
-compileFlags = ("-std=c++17 -pedantic -Wall -Wextra " + # I like warnings
-    "-Wno-c++11-narrowing")                            # Except this one. Go away. Ktx
-
-if "debug" in env and env["debug"] is False:
-    compileFlags += " -O3 "
+if (gcc or clang):
+    compileFlags = ("-std=c++17 -pedantic -Wall -Wextra " + # I like warnings
+        "-Wno-c++11-narrowing")                            # Except this one. Go away. Ktx
 else:
-    # May not work with MSVS, but that's not the worst loss.
-    compileFlags += " -g -fstandalone-debug "
-
-# Yet another Windows hack, because of a 1k char limit
-# Shamelessly borrowed from https://github.com/SCons/scons/wiki/LongCmdLinesOnWin32
-if env['PLATFORM'] == 'win32':
-    import win32file
-    import win32event
-    import win32process
-    import win32security
-
-    def my_spawn(sh, escape, cmd, args, spawnenv):
-        #for var in spawnenv:
-        #    spawnenv[var] = spawnenv[var].encode('utf-8', 'replace')
-
-        sAttrs = win32security.SECURITY_ATTRIBUTES()
-        StartupInfo = win32process.STARTUPINFO()
-        newargs = ' '.join(map(escape, args[1:]))
-        cmdline = cmd + " " + newargs
-
-        # check for any special operating system commands
-        if cmd == 'del':
-            for arg in args[1:]:
-                win32file.DeleteFile(arg)
-            exit_code = 0
-        else:
-            # otherwise execute the command.
-            hProcess, hThread, dwPid, dwTid = win32process.CreateProcess(None, cmdline, None, None, 1, 0, spawnenv, None, StartupInfo)
-            win32event.WaitForSingleObject(hProcess, win32event.INFINITE)
-            exit_code = win32process.GetExitCodeProcess(hProcess)
-            win32file.CloseHandle(hProcess);
-            win32file.CloseHandle(hThread);
-        return exit_code
-
-    env['SPAWN'] = my_spawn
-
-# End hack
-
+    compileFlags = "/std:c++17"
+if "debug" in env and env["debug"] is False:
+    if (clang or gcc):
+        compileFlags += " -O3 "
+    else:
+        compileFlags += " /O2 "
+else:
+    if (clang or gcc):
+        compileFlags += " -g -fstandalone-debug "
+    else:
+        compileFlags += " /DEBUG " 
 env.Append(CXXFLAGS=compileFlags)
 
 hasDummyDir = os.path.exists("DummyApp")

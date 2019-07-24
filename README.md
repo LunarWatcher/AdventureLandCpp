@@ -22,6 +22,12 @@ This is intended to be a library, but in its current state, it isn't importable 
 
 # Library use setup
 
-This project builds around SCons. Other build systems either need to invoke SCons and manually find the paths, or in some other way compile it. 
+This project builds around SCons. Other build systems either need to invoke SCons and manually find the paths, or in some other way compile it. A conan package is planned in the future.
 
+If you're on Windows, you'll need to install the Win32 Python package:
+
+```
+pip install pypiwin32
+```
+This is to enable support for the longer compile lines, should they exceed the limits Windows imposes at 1k chars.
 

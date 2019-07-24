@@ -10,3 +10,4 @@
 -IvsInclude/Poco
 -IvsInclude/spdlog
 -IvsInclude/zlib
+-IvsInclude/IXWebSocket

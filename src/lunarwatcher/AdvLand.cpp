@@ -10,15 +10,14 @@ AdvLandClient::AdvLandClient(std::string email, std::string password)
         : session("adventure.land", 443,
                   new Context(Context::CLIENT_USE, "", "", "", Context::VERIFY_NONE, 9, false,
                               "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH")) {
+    ix::initNetSystem();
     login(email, password);
     collectGameData();
     collectCharacters();
     collectServers();
-
-    connectWebsocket();
+    
 }
-
-AdvLandClient::~AdvLandClient() {}
+AdvLandClient::~AdvLandClient() { ix::uninitNetSystem(); }
 
 void AdvLandClient::login(std::string& email, std::string& password) {
 
@@ -72,6 +71,11 @@ void AdvLandClient::login(std::string& email, std::string& password) {
         if (cookie.getName() == "auth") {
             mLogger->info("Login succeeded");
             this->authToken = cookie.getValue();
+            
+            std::stringstream str(this->authToken);
+            std::string item;
+            while (std::getline(str, item, '-')) {}
+            this->userId = item; 
             return;
         }
     }
@@ -183,7 +187,6 @@ void AdvLandClient::collectServers() {
     hasServerCluster:
         continue;
     }
-    
 }
 
 void AdvLandClient::postRequest(std::stringstream& out, HTTPResponse& response, std::string apiEndpoint,
@@ -227,8 +230,17 @@ void AdvLandClient::parseCharacters(nlohmann::json& data) {
     }
 }
 
-void AdvLandClient::connectWebsocket() {
-    // TODO figure out how the WS system works
+ServerCluster* AdvLandClient::getServerCluster(std::string identifier) {
+    for (ServerCluster& cluster : serverClusters) {
+        if (cluster.getRegion() == identifier) return &cluster;
+    }
+    return nullptr;
+}
+
+Server* AdvLandClient::getServerInCluster(std::string clusterIdentifier, std::string serverIdentifier) {
+    ServerCluster* cluster = getServerCluster(clusterIdentifier);
+    if (!cluster) return nullptr;
+    return cluster->getServerByName(serverIdentifier);
 }
 
 } // namespace advland

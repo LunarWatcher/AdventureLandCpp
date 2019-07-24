@@ -18,13 +18,12 @@ if (len(packages) != 0):
     pipArgs = ["install"] + packages
     main(pipArgs)
 
-try: 
 
-    init = bool(input("Init submodules? (True/False): "))
-    if (init):
-        os.system("git submodule update --init --recursive")
-except:
-    print("Invalid input - skipping...")
+init = input("Init submodules? (True/False): ") in ["yes", "1", "true", "True"]
+if (init):
+    print("Initializing submodules...")
+    os.system("git submodule update --init --recursive")
+
 
 if not os.path.exists("build"):
     os.mkdir("build")
@@ -37,10 +36,9 @@ if (result != 0):
 os.chdir("..");
 
 
-try: 
-    init = bool(input("Create symlinks? (True/False): "))
-    if (init):
-        # Symlinks
-        import VSConan.init
-except:
-    print("Invalid input - skipping...")
+init = input("Create symlinks? (True/False): ") in ["yes", "1", "true", "True"]
+
+if (init):
+    # Symlinks
+    import VSConan.init
+

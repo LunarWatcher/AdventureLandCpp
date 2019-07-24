@@ -10,14 +10,14 @@
 #include "Poco/Net/HTTPResponse.h"
 #include "Poco/Net/HTTPSClientSession.h"
 #include "Poco/Net/NameValueCollection.h"
-#include "Poco/Net/Socket.h"
-#include "Poco/Net/WebSocket.h"
 #include "Poco/StreamCopier.h"
 #include "nlohmann/json.hpp"
 
 #include "meta/Typedefs.hpp"
 #include "objects/GameData.hpp"
 #include "objects/Server.hpp"
+#include "game/PlayerSkeleton.hpp"
+#include "game/Player.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -26,7 +26,12 @@
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
+#include <thread>
+
+#include <ixwebsocket/IXNetSystem.h>
+#include <ixwebsocket/IXWebSocket.h>
 
 namespace advland {
 
@@ -37,18 +42,21 @@ class AdvLandClient {
 private:
     static auto inline const mLogger = spdlog::stdout_color_mt("AdvLandClient");
     HTTPSClientSession session;
-    WebSocket* websocket;
 
     // This is the session cookie. It's used with some calls, and is essential for base
     // post-login auth operations.
     std::string authToken;
 
+    // The user ID. Not to be confused with character IDs. 
+    std::string userId;
+
     // Mirror of the in-game G variable
     GameData data;
-
     // vector<pair<id, username>>
     std::vector<std::pair<std::string, std::string>> characters;
     std::vector<ServerCluster> serverClusters;
+
+    std::vector<Player> bots;
 
     void login(std::string& email, std::string& password);
     void collectGameData();
@@ -56,30 +64,30 @@ private:
     void collectServers();
 
     void parseCharacters(nlohmann::json& data);
-    void connectWebsocket();
 
     void postRequest(std::stringstream& out, HTTPResponse& response, std::string apiEndpoint, std::string arguments,
                      bool auth, const std::vector<CookiePair>& formData = {});
 
 public:
     AdvLandClient(std::string email, std::string password);
-
     virtual ~AdvLandClient();
-   
-    ServerCluster* getServerCluster(std::string identifier) {
-        for (ServerCluster& cluster : serverClusters) {
-            if (cluster.getRegion() == identifier) return &cluster;
+    
+    void addPlayer(std::string name, Server& server, PlayerSkeleton& skeleton) {
+        Player bot(name, server.getIp() + ":" + std::to_string(server.getPort()), *this, skeleton);   
+        this->bots.push_back(bot);
+    }
+
+    void startBlocking() {
+        for (Player& player : bots) {
+            player.start();
         }
-        return nullptr;
     }
+    
 
-    Server* getServerInCluster(std::string clusterIdentifier, std::string serverIdentifier) {
-        ServerCluster* cluster = getServerCluster(clusterIdentifier);
-        if (!cluster) return nullptr;
-        return cluster->getServerByName(serverIdentifier);
-    }
+    ServerCluster* getServerCluster(std::string identifier);
+    Server* getServerInCluster(std::string clusterIdentifier, std::string serverIdentifier);
 
-
+    std::string& getUserId() { return userId; }
 };
 
 } // namespace advland
