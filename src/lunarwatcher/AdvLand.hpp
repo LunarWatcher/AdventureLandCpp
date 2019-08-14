@@ -56,7 +56,7 @@ private:
     std::vector<std::pair<std::string, std::string>> characters;
     std::vector<ServerCluster> serverClusters;
 
-    std::vector<Player> bots;
+    std::vector<std::shared_ptr<Player>> bots;
 
     void login(std::string& email, std::string& password);
     void collectGameData();
@@ -73,13 +73,13 @@ public:
     virtual ~AdvLandClient();
     
     void addPlayer(std::string name, Server& server, PlayerSkeleton& skeleton) {
-        Player bot(name, server.getIp() + ":" + std::to_string(server.getPort()), *this, skeleton);   
+        std::shared_ptr<Player> bot = std::make_shared<Player>(name, server.getIp() + ":" + std::to_string(server.getPort()), *this, skeleton);   
         this->bots.push_back(bot);
     }
 
     void startBlocking() {
-        for (Player& player : bots) {
-            player.start();
+        for (auto& player : bots) {
+            player->start();
         }
     }
     

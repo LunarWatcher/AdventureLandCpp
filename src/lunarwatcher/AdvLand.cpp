@@ -15,6 +15,7 @@ AdvLandClient::AdvLandClient(std::string email, std::string password)
     collectGameData();
     collectCharacters();
     collectServers();
+    mLogger->info("{}", serverClusters[2].getServers().size());
     
 }
 AdvLandClient::~AdvLandClient() { ix::uninitNetSystem(); }
@@ -169,7 +170,7 @@ void AdvLandClient::collectServers() {
 
         Server parsedServer(serverIdentifier, ip, port, pvp, gameplay);
 
-        for (ServerCluster cluster : this->serverClusters) {
+        for (ServerCluster& cluster : this->serverClusters) {
             if (cluster.getRegion() == clusterIdentifier) {
                 if (cluster.hasServer(serverIdentifier)) {
                     cluster.update(serverIdentifier, parsedServer);

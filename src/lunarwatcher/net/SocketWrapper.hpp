@@ -9,6 +9,9 @@
 #include <spdlog/spdlog.h>
 #include <string>
 #include <vector>
+#include <map>
+#include "lunarwatcher/utils/SocketIOParser.hpp"
+
 namespace advland {
 
 enum SocketConnectStatusCode {
@@ -18,21 +21,32 @@ enum SocketConnectStatusCode {
     ERR_ALREADY_CONNECTED
 
 };
+typedef std::function<void(const ix::WebSocketMessagePtr&)> RawCallback;
+typedef std::function<void(const nlohmann::json&)> EventCallback;
+
 class AdvLandClient;
+class Message;
 
 class SocketWrapper {
 private:
     static auto inline const mLogger = spdlog::stdout_color_mt("SocketWrapper");
-    std::shared_ptr<ix::WebSocket> webSocket;
+    ix::WebSocket webSocket;
     AdvLandClient& client;
     std::string characterId;
 
-    std::vector<std::function<void(const ix::WebSocketMessagePtr&)>> rawCallbacks;
-    std::vector<std::pair<std::string, std::function<void(const ix::WebSocketMessagePtr&)>>> eventCallback;
+    // ping managing 
+    int pingInterval;
+    std::chrono::time_point<std::chrono::high_resolution_clock> lastPing;
 
+    // Callbacks 
+    std::vector<RawCallback> rawCallbacks;
+    std::map<std::string, std::vector<EventCallback>> eventCallbacks;
+
+    void triggerInternalEvents(std::string eventName, const nlohmann::json& event);
+    void dispatchEvent(std::string eventName, const nlohmann::json& event);
     void messageReceiver(const ix::WebSocketMessagePtr& message);
     void initializeSystem();
-
+    
 public:
     /**
      * Initializes a general, empty SocketWrapper ready to connect.
@@ -42,16 +56,28 @@ public:
      * character.
      */
     SocketWrapper(std::string characterId, std::string fullUrl, AdvLandClient& client);
-    
+    ~SocketWrapper();
+
+    /**
+     * Registers a listener that receives raw events straight from the websocket. These aren't
+     * parsed - at all - and the receiving function is expected to do so. 
+     *
+     * This only sends messages - other status codes aren't sent.
+     */
     void registerRawMessageCallback(std::function<void(const ix::WebSocketMessagePtr&)> callback);
+    /**
+     * Equivalent of socket.on
+     */
     void registerEventCallback(std::string event, std::function<void(const nlohmann::json&)> callback);
 
     /**
      *  Connects a user. this should only be run from the Player class
      */
     SocketConnectStatusCode connect();
+    void sendPing();
+
+    void emit(std::string event, const nlohmann::json& json);
 };
 
 } // namespace advland
-
 #endif

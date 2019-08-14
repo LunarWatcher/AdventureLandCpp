@@ -7,7 +7,7 @@
 namespace advland {
 
 // Generic exception class. 
-#define CREATE_EXCEPTION(name) \
+#define createException(name) \
     class name : std::exception { \
     private: \
         std::string message; \
@@ -16,11 +16,15 @@ namespace advland {
         virtual const char* what() const throw() { return message.c_str(); } \
     };
 
-CREATE_EXCEPTION(LoginException)
-CREATE_EXCEPTION(EndpointException)
+createException(LoginException)
+createException(EndpointException)
 
-CREATE_EXCEPTION(IllegalArgumentException)
+createException(IllegalArgumentException)
+createException(EmptyInputException)
+createException(IllegalStateException)
 
+
+#undef createException
 }
 
 #endif 

@@ -27,7 +27,7 @@ public:
      * @param fullUrl  The server IP and port to connect to.
      */
     Player(std::string uid, std::string fullUrl, AdvLandClient& client, PlayerSkeleton& skeleton);
-    Player(const Player& p);
+    
     SocketWrapper& getSocket();
     void start();
 };

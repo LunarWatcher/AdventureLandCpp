@@ -1,7 +1,7 @@
 # TODO list 
 
 * [ ] SocketWrapper: Callback to Player when connected and authenticated.
-* [ ] SocketWrapper: Parse data
+* [x] SocketWrapper: Parse data
 * [ ] SocketWrapper: Authentication
 * [ ] SocketWrapper: Disconnection safety
 * [ ] Player: API functions
@@ -9,5 +9,5 @@
 
 # Bug list 
 
-* [ ] Failure to properly parse all servers
+* [x] Failure to properly parse all servers
 

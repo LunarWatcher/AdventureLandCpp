@@ -128,5 +128,6 @@ env.Prepend(LIBS=["AdvLandCpp"])
 
 if(hasDummyDir):
     env.VariantDir("build/testapp", "DummyApp", duplicate=0)
-    env.Program("bin/DummyApp", Glob("build/testapp/*.cpp"))
+    env.Program("bin/DummyApp", "build/testapp/HelloWorld.cpp")
+    env.Program("bin/Experimental", "build/testapp/CompilerTest.cpp")
 
