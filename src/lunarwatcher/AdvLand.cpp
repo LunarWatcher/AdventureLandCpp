@@ -3,6 +3,7 @@
 #include "meta/Typedefs.hpp"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
+#include <regex>
 
 namespace advland {
 
@@ -14,8 +15,8 @@ AdvLandClient::AdvLandClient(std::string email, std::string password)
     login(email, password);
     collectGameData();
     collectCharacters();
+    validateSession();
     collectServers();
-    mLogger->info("{}", serverClusters[2].getServers().size());
     
 }
 AdvLandClient::~AdvLandClient() { ix::uninitNetSystem(); }
@@ -29,7 +30,6 @@ void AdvLandClient::login(std::string& email, std::string& password) {
     session.receiveResponse(indexResponse);
 
     int result = indexResponse.getStatus();
-
     if (result != 200) {
         throw LoginException("Failed to load index. Received code: " + std::to_string(result));
     }
@@ -68,20 +68,43 @@ void AdvLandClient::login(std::string& email, std::string& password) {
         // it's on the AL developers)
         throw LoginException("Caught an exception from getCookies() - the set-cookies header is probably malformed");
     }
-    for (auto cookie : cookies) {
+    for (auto& cookie : cookies) {
         if (cookie.getName() == "auth") {
             mLogger->info("Login succeeded");
-            this->authToken = cookie.getValue();
-            
-            std::stringstream str(this->authToken);
-            std::string item;
-            while (std::getline(str, item, '-')) {}
-            this->userId = item; 
+            this->sessionCookie = cookie.getValue();            
+            this->userId = this->sessionCookie.substr(0, this->sessionCookie.find("-")); 
             return;
-        }
+        } 
     }
 
     throw LoginException("Failed to find authentication key");
+}
+
+void AdvLandClient::validateSession() {
+    HTTPRequest request(HTTPRequest::HTTP_GET, "/", HTTPMessage::HTTP_1_1);
+    HTTPResponse response;
+    
+    NameValueCollection collection;
+    collection.add("auth", this->sessionCookie);
+    request.setCookies(collection);
+
+    session.sendRequest(request);
+    std::istream& s = session.receiveResponse(response);
+    std::stringstream index;
+    Poco::StreamCopier::copyStream(s, index);
+
+    std::string haystack = index.str();
+
+    std::regex regex("user_auth=\"([a-zA-Z0-9]+)\"");
+    std::smatch match;
+
+    std::regex_search(haystack, match, regex); 
+    
+    this->userAuth = match[1];
+   
+    if (userAuth == "")
+        throw LoginException("Failed to retrieve user authentication token");
+
 }
 
 void AdvLandClient::collectGameData() {
@@ -108,7 +131,7 @@ void AdvLandClient::collectCharacters() {
     std::stringstream result;
     HTTPRequest request(HTTPRequest::HTTP_POST, "/api/servers_and_characters", HTTPMessage::HTTP_1_1);
     NameValueCollection collection;
-    collection.add("auth", this->authToken);
+    collection.add("auth", this->sessionCookie);
     request.setCookies(collection);
     HTTPResponse response;
     HTMLForm form;
@@ -195,7 +218,7 @@ void AdvLandClient::postRequest(std::stringstream& out, HTTPResponse& response, 
     HTTPRequest request(HTTPRequest::HTTP_POST, std::string("/api/") + apiEndpoint, HTTPMessage::HTTP_1_1);
     if (auth) {
         NameValueCollection cookies;
-        cookies.add("auth", this->authToken);
+        cookies.add("auth", this->sessionCookie);
         request.setCookies(cookies);
     }
 

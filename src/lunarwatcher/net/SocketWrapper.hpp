@@ -38,6 +38,9 @@ private:
     int pingInterval;
     std::chrono::time_point<std::chrono::high_resolution_clock> lastPing;
 
+    // Entity management
+    bool hasReceivedFirstEntities;
+
     // Callbacks 
     std::vector<RawCallback> rawCallbacks;
     std::map<std::string, std::vector<EventCallback>> eventCallbacks;
@@ -46,7 +49,7 @@ private:
     void dispatchEvent(std::string eventName, const nlohmann::json& event);
     void messageReceiver(const ix::WebSocketMessagePtr& message);
     void initializeSystem();
-    
+    void login(); 
 public:
     /**
      * Initializes a general, empty SocketWrapper ready to connect.

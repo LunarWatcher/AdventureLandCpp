@@ -1,10 +1,13 @@
 #include "net/SocketWrapper.hpp"
 #include <algorithm>
+#include "AdvLand.hpp"
 
 namespace advland {
 
+#define WIDTH_HEIGHT_SCALE {"width", 1920}, {"height", 1080}, {"scale", 2}
+
 SocketWrapper::SocketWrapper(std::string characterId, std::string fullUrl, AdvLandClient& client)
-        : webSocket(), client(client), characterId(characterId) {
+        : webSocket(), client(client), characterId(characterId), hasReceivedFirstEntities(false) {
     // In order to faciliate for websocket connection, a special URL needs to be used.
     // By adding this, the connection can be established as a websocket connection.
     // A real socket.io client likely uses this or something similar internally
@@ -28,8 +31,28 @@ void SocketWrapper::initializeSystem() {
         [this](const ix::WebSocketMessagePtr& message) { this->messageReceiver(message); });
 
     this->registerEventCallback("welcome", [this](const nlohmann::json& event) {
-        this->emit("loaded", {{"success", 1}, {"width", 1920}, {"height", 1080}, {"scale", 2}});
+        this->emit("loaded", {{"success", 1}, WIDTH_HEIGHT_SCALE});
     });
+
+    this->registerEventCallback("entities", [this](const nlohmann::json& event) {
+        std::string type = event["type"].get<std::string>();
+        mLogger->info(event.dump());
+        if (type == "all") {
+            login();
+        }    
+    });
+
+    this->registerEventCallback("start", [this](const nlohmann::json& event) {
+        mLogger->info("Received start event with data: {}", event.dump());
+    });
+}
+
+void SocketWrapper::login() {
+    std::string& auth = client.getAuthToken();
+    std::string& userId = client.getUserId();
+
+    emit("auth", {{"user", userId}, {"character", characterId}, {"auth", auth}, 
+            WIDTH_HEIGHT_SCALE, {"no_html", true}, {"no_graphics", true}/*, {"passphrase", ""}*/});
 }
 
 void SocketWrapper::emit(std::string event, const nlohmann::json& json) {
@@ -46,7 +69,7 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
     if (pingInterval != 0 && message->type != ix::WebSocketMessageType::Close) {
         auto now = std::chrono::high_resolution_clock::now();
         auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastPing).count();
-        mLogger->info("Diff: {}", diff);
+
         // The socket expects a ping every few milliseconds (currently, it's every 4000 milliseconds)
         // This is sent through the websocket on the frame type 0
         if (diff > pingInterval) {
@@ -221,5 +244,6 @@ void SocketWrapper::sendPing() {
     this->webSocket.send("2::"); // ping is event 2
 }
 
+#undef WIDTH_HEIGHT_SCALE
 } // namespace advland
 

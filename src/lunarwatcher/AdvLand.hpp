@@ -13,11 +13,11 @@
 #include "Poco/StreamCopier.h"
 #include "nlohmann/json.hpp"
 
+#include "game/Player.hpp"
+#include "game/PlayerSkeleton.hpp"
 #include "meta/Typedefs.hpp"
 #include "objects/GameData.hpp"
 #include "objects/Server.hpp"
-#include "game/PlayerSkeleton.hpp"
-#include "game/Player.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -26,9 +26,9 @@
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <utility>
-#include <thread>
 
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocket.h>
@@ -45,9 +45,10 @@ private:
 
     // This is the session cookie. It's used with some calls, and is essential for base
     // post-login auth operations.
-    std::string authToken;
+    std::string sessionCookie;
+    std::string userAuth;
 
-    // The user ID. Not to be confused with character IDs. 
+    // The user ID. Not to be confused with character IDs.
     std::string userId;
 
     // Mirror of the in-game G variable
@@ -62,6 +63,7 @@ private:
     void collectGameData();
     void collectCharacters();
     void collectServers();
+    void validateSession();
 
     void parseCharacters(nlohmann::json& data);
 
@@ -71,10 +73,16 @@ private:
 public:
     AdvLandClient(std::string email, std::string password);
     virtual ~AdvLandClient();
-    
+
     void addPlayer(std::string name, Server& server, PlayerSkeleton& skeleton) {
-        std::shared_ptr<Player> bot = std::make_shared<Player>(name, server.getIp() + ":" + std::to_string(server.getPort()), *this, skeleton);   
-        this->bots.push_back(bot);
+        for (auto& [id, username] : characters) {
+            if (username == name) {
+                std::shared_ptr<Player> bot = std::make_shared<Player>(
+                    id, server.getIp() + ":" + std::to_string(server.getPort()), *this, skeleton);
+                this->bots.push_back(bot);
+                return;
+            }
+        }
     }
 
     void startBlocking() {
@@ -82,12 +90,12 @@ public:
             player->start();
         }
     }
-    
 
     ServerCluster* getServerCluster(std::string identifier);
     Server* getServerInCluster(std::string clusterIdentifier, std::string serverIdentifier);
 
     std::string& getUserId() { return userId; }
+    std::string& getAuthToken() { return userAuth; }
 };
 
 } // namespace advland
