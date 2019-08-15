@@ -1,0 +1,17 @@
+* TODOs
+** SocketWrapper [20%]
+   - [ ] Callback to player when connected and authenticated
+   - [X] Parse data
+   - [ ] Authentication
+   - [ ] Disconnection safety
+** Player [0%]
+   - [ ] API functions [0/5]
+     - [ ] Move
+     - [ ] Attack
+     - [ ] Smart move
+     - [ ] on_cm and send_cm
+     - [ ] Other non-primary functions
+** AdvLandClient [100%]
+   - [X] Add players and connection with blocking and non-blocking variants
+* Bugs [100%]
+  - [X] Failure to parse all servers 
