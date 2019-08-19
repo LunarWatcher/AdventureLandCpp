@@ -1,17 +1,20 @@
 * TODOs
-** SocketWrapper [20%]
-   - [ ] Callback to player when connected and authenticated
+** SocketWrapper [50%]
+   - [X] Callback to player when connected and authenticated
    - [X] Parse data
    - [ ] Authentication
    - [ ] Disconnection safety
 ** Player [0%]
-   - [ ] API functions [0/5]
-     - [ ] Move
+   - [-] API functions [1/5]
+     - [X] Move
      - [ ] Attack
      - [ ] Smart move
      - [ ] on_cm and send_cm
      - [ ] Other non-primary functions
 ** AdvLandClient [100%]
    - [X] Add players and connection with blocking and non-blocking variants
+** Documentation [0%]
+   - [ ] Correct the login documentation
+   - [ ] Update docs with login instructions and use of auth
 * Bugs [100%]
   - [X] Failure to parse all servers 

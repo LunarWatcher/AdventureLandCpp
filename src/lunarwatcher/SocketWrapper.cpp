@@ -6,8 +6,8 @@ namespace advland {
 
 #define WIDTH_HEIGHT_SCALE {"width", 1920}, {"height", 1080}, {"scale", 2}
 
-SocketWrapper::SocketWrapper(std::string characterId, std::string fullUrl, AdvLandClient& client)
-        : webSocket(), client(client), characterId(characterId), hasReceivedFirstEntities(false) {
+SocketWrapper::SocketWrapper(std::string characterId, std::string fullUrl, AdvLandClient& client, Player& player)
+        : webSocket(), client(client), player(player), characterId(characterId), hasReceivedFirstEntities(false) {
     // In order to faciliate for websocket connection, a special URL needs to be used.
     // By adding this, the connection can be established as a websocket connection.
     // A real socket.io client likely uses this or something similar internally
@@ -26,6 +26,14 @@ SocketWrapper::SocketWrapper(std::string characterId, std::string fullUrl, AdvLa
 
 SocketWrapper::~SocketWrapper() { webSocket.close(); }
 
+void SocketWrapper::sanitizeInput(nlohmann::json& entity) {
+    if (entity.find("rip") != entity.end()) {
+        if (entity["rip"].is_number()) {
+            entity["rip"] = (int(entity["rip"]) == 1);
+        }
+    }
+}
+
 void SocketWrapper::initializeSystem() {
     this->webSocket.setOnMessageCallback(
         [this](const ix::WebSocketMessagePtr& message) { this->messageReceiver(message); });
@@ -36,14 +44,64 @@ void SocketWrapper::initializeSystem() {
 
     this->registerEventCallback("entities", [this](const nlohmann::json& event) {
         std::string type = event["type"].get<std::string>();
-        mLogger->info(event.dump());
-        if (type == "all") {
-            login();
-        }    
+        //mLogger->info(event.dump());
+        if (type == "all" && !hasReceivedFirstEntities) {
+            login(); 
+            hasReceivedFirstEntities = true;
+        }  
+         
+        for(auto it = entities.begin(); it != entities.end();) {
+            if((*it).second.value("dead", false)) 
+                it = entities.erase(it);
+            else ++it;
+        }
+        if (event.find("players") != event.end()) {
+            nlohmann::json players = event["players"];
+            for (auto& player : players) {
+                sanitizeInput(player);
+                auto id = player["id"].get<std::string>();
+                if (id == "") {
+                    mLogger->error("Found empty ID? Dumping JSON: {}", event.dump());
+                    return;
+                }
+                
+                if (id == this->player.getUsername()) {
+                    this->player.updateJson(player);
+                }
+                // Avoid data loss by updating the JSON rather than overwriting
+                if (this->entities.find(id) == entities.end())
+                    this->entities[id] = player;
+                else {  
+                    this->entities[id].update(player); 
+                }  
+            
+            }
+        }  
+
+        if (event.find("monsters") != event.end()) {
+            nlohmann::json monsters = event["monsters"];
+
+            for (auto& monster : monsters) {
+                auto id = monster["id"].get<std::string>();
+                sanitizeInput(monster);
+                
+                if (id == "") {
+                    mLogger->error("Empty monster ID? Dumping json: {}", event.dump());
+                    return;
+                }
+                
+                if (this->entities.find(id) == entities.end()) 
+                    this->entities[id] = monster;
+                else 
+                    this->entities[id].update(monster);
+            }
+        } 
     });
 
     this->registerEventCallback("start", [this](const nlohmann::json& event) {
-        mLogger->info("Received start event with data: {}", event.dump());
+        // The start event contains necessary data to populate the character
+        this->player.updateJson(event);
+        this->player.onConnect();
     });
 }
 
@@ -80,7 +138,8 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
 
     // All the Socket.IO events also come through as messages
     if (message->type == ix::WebSocketMessageType::Message) {
-        this->mLogger->info("Received: {}", message->str);
+        // Uncomment for data samples
+        //this->mLogger->info("Received: {}", message->str);
 
         std::string& messageStr = message->str;
         if (messageStr.length() == 0) {
@@ -172,8 +231,7 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
                             auto data = json[1];
                             dispatchEvent(eventName, data);
                         }
-
-                        triggerInternalEvents(eventName, json.size() == 1 ? nlohmann::json{} : json[1]);
+ 
                     }
                 }
             }
@@ -211,9 +269,6 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
     }
 }
 
-void SocketWrapper::triggerInternalEvents(std::string eventName, const nlohmann::json& event) {
-    // TODO
-}
 
 void SocketWrapper::dispatchEvent(std::string eventName, const nlohmann::json& event) {
     if (eventCallbacks.find(eventName) != eventCallbacks.end()) {
@@ -240,8 +295,18 @@ SocketConnectStatusCode SocketWrapper::connect() {
     return SocketConnectStatusCode::SUCCESSFUL;
 }
 
+void SocketWrapper::close() {
+    if (this->webSocket.getReadyState() == ix::ReadyState::Open) {
+        this->webSocket.close();
+    }
+}
+
 void SocketWrapper::sendPing() {
     this->webSocket.send("2::"); // ping is event 2
+}
+
+std::map<std::string, nlohmann::json>& SocketWrapper::getEntities() {
+    return entities;
 }
 
 #undef WIDTH_HEIGHT_SCALE

@@ -1,4 +1,5 @@
 #include "AdvLand.hpp"
+#include "math/Logic.hpp"
 #include "meta/Exceptions.hpp"
 #include "meta/Typedefs.hpp"
 #include "spdlog/sinks/stdout_color_sinks.h"
@@ -6,6 +7,7 @@
 #include <regex>
 
 namespace advland {
+bool AdvLandClient::running = true;
 
 AdvLandClient::AdvLandClient(std::string email, std::string password)
         : session("adventure.land", 443,
@@ -17,7 +19,6 @@ AdvLandClient::AdvLandClient(std::string email, std::string password)
     collectCharacters();
     validateSession();
     collectServers();
-    
 }
 AdvLandClient::~AdvLandClient() { ix::uninitNetSystem(); }
 
@@ -71,10 +72,10 @@ void AdvLandClient::login(std::string& email, std::string& password) {
     for (auto& cookie : cookies) {
         if (cookie.getName() == "auth") {
             mLogger->info("Login succeeded");
-            this->sessionCookie = cookie.getValue();            
-            this->userId = this->sessionCookie.substr(0, this->sessionCookie.find("-")); 
+            this->sessionCookie = cookie.getValue();
+            this->userId = this->sessionCookie.substr(0, this->sessionCookie.find("-"));
             return;
-        } 
+        }
     }
 
     throw LoginException("Failed to find authentication key");
@@ -83,7 +84,7 @@ void AdvLandClient::login(std::string& email, std::string& password) {
 void AdvLandClient::validateSession() {
     HTTPRequest request(HTTPRequest::HTTP_GET, "/", HTTPMessage::HTTP_1_1);
     HTTPResponse response;
-    
+
     NameValueCollection collection;
     collection.add("auth", this->sessionCookie);
     request.setCookies(collection);
@@ -98,13 +99,11 @@ void AdvLandClient::validateSession() {
     std::regex regex("user_auth=\"([a-zA-Z0-9]+)\"");
     std::smatch match;
 
-    std::regex_search(haystack, match, regex); 
-    
-    this->userAuth = match[1];
-   
-    if (userAuth == "")
-        throw LoginException("Failed to retrieve user authentication token");
+    std::regex_search(haystack, match, regex);
 
+    this->userAuth = match[1];
+
+    if (userAuth == "") throw LoginException("Failed to retrieve user authentication token");
 }
 
 void AdvLandClient::collectGameData() {
@@ -266,5 +265,106 @@ Server* AdvLandClient::getServerInCluster(std::string clusterIdentifier, std::st
     if (!cluster) return nullptr;
     return cluster->getServerByName(serverIdentifier);
 }
+
+void AdvLandClient::processInternals() {
+    auto last = std::chrono::high_resolution_clock::now();
+
+    // Some things are required to be processed locally, such as updating the coordinates when moving.
+    while (running) {
+        auto now = std::chrono::high_resolution_clock::now(); 
+        const double delta =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - last)
+                .count();
+        last = now;
+        auto cDelta = delta;
+
+        while (cDelta > 0) {
+            for (auto& playerPtr : bots) {
+                if (!playerPtr->hasStarted()) {
+                    continue;
+                }
+                if (playerPtr->isAlive() && playerPtr->isMoving()) {
+                    nlohmann::json& entity = playerPtr->getRawJson();
+                    if (entity.find("ref_speed") == entity.end() || (entity.find("ref_speed") != entity.end() && entity["ref_speed"] != entity["speed"])) {
+                        entity["ref_speed"] = entity["speed"];
+                        entity["from_x"] = entity["x"];
+                        entity["from_y"] = entity["y"];
+                        std::pair<int, int> vxy = MovementMath::calculateVelocity(entity);
+                        entity["vx"] = vxy.first;
+                        entity["vy"] = vxy.second;
+                        mLogger->info("Calculated vectors: {}, {}", vxy.first, vxy.second);
+                        entity["engaged_move"] = entity["move_num"];
+                    }
+                    MovementMath::moveEntity(entity, cDelta);
+                    MovementMath::stopLogic(entity);
+                    
+                }
+                // Executed if entities are on a per-player basis.
+                // This is the default behavior.
+#if !USE_STATIC_ENTITIES
+                for (auto& [id, entity] : playerPtr->getEntities()) {
+                    if (entity.find("speed") == entity.end() && entity["type"] == "monster") {
+                        std::string type = entity["mtype"];
+                        entity["speed"] = this->getData()["monsters"][type]["speed"].get<double>();
+                    } 
+                    if (entity.value("rip", false) && entity.value("moving", false)) {
+                        if (entity.value("move_num", 0l) != entity.value("engaged_move", 0l) || (entity.find("ref_speed") != entity.end() && entity["ref_speed"] != entity["speed"])) {
+                            entity["ref_speed"] = entity["speed"];
+                            entity["from_x"] = entity["x"];
+                            entity["from_y"] = entity["y"];
+                            std::pair<int, int> vxy = MovementMath::calculateVelocity(entity);
+                            entity["vx"] = vxy.first;
+                            entity["vy"] = vxy.second;
+                            
+                            entity["engaged_move"] = entity["move_num"];
+                        }
+
+                        MovementMath::moveEntity(entity, cDelta);
+                        MovementMath::stopLogic(entity); // Processes whether we're done moving or not.
+                        
+                    }
+                    
+                }
+#endif
+            }
+            // Executed if entities are shared across all players.
+#if USE_STATIC_ENTITIES
+            for (auto& [id, entity] : SocketWrapper::getEntities()) {
+                if (entity.value("rip", false) != false && entity.value("moving", false)) {
+                    if (entity.find("speed") == entity.end() && entity["type"] == "monster") {
+                        std::string type = entity["mtype"];
+                        entity["speed"] = this->getData()["monsters"][type]["speed"].get<double>();
+
+                    }
+                    if (entity.value("move_num", 0l) != entity.value("engaged_move", 0l) || (entity.find("ref_speed") != entity.end() && entity["ref_speed"] != entity["speed"])) {
+                        entity["from_x"] = entity["x"];
+                        entity["from_y"] = entity["y"];
+                        if (entity.find("ref_speed") == entity.end())
+                            entity["ref_speed"] = entity["speed"];
+                        std::pair<int, int> vxy = MovementMath::calculateVelocity(entity);
+                        entity["vx"] = vxy.first;
+                        entity["vy"] = vxy.second;
+                        
+                        entity["engaged_move"] = entity["move_num"];
+                    }
+
+                    MovementMath::moveEntity(entity, cDelta);
+                    MovementMath::stopLogic(entity); // Processes whether we're done moving or not.
+                }
+            }
+#endif
+            cDelta -= 50;
+        }
+        // Maintain 60 "FPS" (1000 milliseconds / 60 FPS is roughly 16.66667 ms between frames)
+        std::this_thread::sleep_for(std::chrono::milliseconds(17));
+    }
+}
+
+void AdvLandClient::kill() { 
+    AdvLandClient::running = false; 
+    for (auto& player : bots) player->stop();
+}
+
+bool AdvLandClient::canRun() { return running; }
 
 } // namespace advland
