@@ -3,6 +3,8 @@
 
 #include <nlohmann/json.hpp>
 
+namespace advland {
+
 class MovementMath {
 public:
     static void stopLogic(nlohmann::json& entity) {
@@ -40,6 +42,13 @@ public:
         
         return std::make_pair(vx, vy);
     }
+
+    static double pythagoras(double x1, double y1, double x2, double y2) {
+        return std::sqrt(
+                std::pow(x1 - x2, 2) +
+                std::pow(y1 - y2, 2));
+    }
 };
 
+}
 #endif 

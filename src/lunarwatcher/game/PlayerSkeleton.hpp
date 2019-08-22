@@ -1,22 +1,36 @@
 #ifndef LUNARWATCHER_ADVLAND_PLAYERSKELETON
 #define LUNARWATCHER_ADVLAND_PLAYERSKELETON
 
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 #include "nlohmann/json.hpp"
 #include <string>
 #include <memory>
 #include <thread>
 #include <vector>
 #include <functional>
+#include <chrono>
+#include "lunarwatcher/utils/Timer.hpp"
+#include <map>
+#include "lunarwatcher/objects/GameData.hpp"
 
 namespace advland {
 
 class Player;
 class PlayerSkeleton {
+private:
+    static auto inline const mSkeletonLogger = spdlog::stdout_color_mt("PlayerSkeleton"); 
+    // "Normal" timers
+    Timer attackTimer;
+
+    // Skill timers (change frequently enough to warrant the use of a map)
+    std::map<std::string, Timer> timers;
+    std::string lastIdSent;
 protected:
     std::shared_ptr<Player> character;
 public:
     void injectPlayer(std::shared_ptr<Player> character) {
-        this->character = character;
+        this->character = character; 
     }
 
     /**
@@ -36,10 +50,27 @@ public:
     // API functions
     bool canMove(double x, double y);
     bool canWalk(const nlohmann::json& entity);
+    bool canAttack(nlohmann::json& entity);
+    bool canUse(const std::string& skill);
+    bool inAttackRange(nlohmann::json& entity);
+        
     void move(double x, double y);
     void say(std::string message);
     // TODO partySay (message: msg, party: true)
     // TODO pmSay (message: msg, name: user)
+        
+    void attack(nlohmann::json& entity);
+    nlohmann::json getNearestMonster(const nlohmann::json& attribs);
+
+    void useSkill(const std::string& ability);
+    void use(const std::string& skill);
+
+    nlohmann::json getTarget();
+    void changeTarget(const nlohmann::json& entity);
+    void sendTargetLogic(const nlohmann::json& entity);
+
+    const GameData& getGameData();
+        
 };
 
 }

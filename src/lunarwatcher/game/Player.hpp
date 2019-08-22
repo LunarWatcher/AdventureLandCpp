@@ -5,6 +5,7 @@
 #include "lunarwatcher/net/SocketWrapper.hpp"
 #include <type_traits>
 #include <nlohmann/json.hpp>
+
 namespace advland {
 
 #define PROXY_GETTER(capName, type) type get##capName(); 
@@ -77,7 +78,14 @@ public:
     PROXY_GETTER(Mp, int)
     PROXY_GETTER(MaxMp, int)
     PROXY_GETTER(Map, std::string) 
+    PROXY_GETTER(MapId, int)
+    PROXY_GETTER(Range, int)
+    PROXY_GETTER(CType, std::string)
 
+    const nlohmann::json& getInventory() {
+        return data["items"];
+    }
+    
     friend class PlayerSkeleton;
 };
 #undef PROXY_GETTER

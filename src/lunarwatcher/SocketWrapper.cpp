@@ -59,6 +59,7 @@ void SocketWrapper::initializeSystem() {
             nlohmann::json players = event["players"];
             for (auto& player : players) {
                 sanitizeInput(player);
+                player["type"] = "character";
                 auto id = player["id"].get<std::string>();
                 if (id == "") {
                     mLogger->error("Found empty ID? Dumping JSON: {}", event.dump());
@@ -80,20 +81,25 @@ void SocketWrapper::initializeSystem() {
 
         if (event.find("monsters") != event.end()) {
             nlohmann::json monsters = event["monsters"];
-
+            
             for (auto& monster : monsters) {
                 auto id = monster["id"].get<std::string>();
+               
                 sanitizeInput(monster);
-                
+                monster["mtype"] = monster["type"].get<std::string>();
+                monster["type"] = "monster"; 
                 if (id == "") {
                     mLogger->error("Empty monster ID? Dumping json: {}", event.dump());
                     return;
                 }
-                
+                if (monster.find("hp") == monster.end()) {
+                    mLogger->error(monster.dump());
+                } else mLogger->info(monster.dump()); 
                 if (this->entities.find(id) == entities.end()) 
                     this->entities[id] = monster;
-                else 
+                else { 
                     this->entities[id].update(monster);
+                }
             }
         } 
     });
@@ -297,7 +303,7 @@ SocketConnectStatusCode SocketWrapper::connect() {
 
 void SocketWrapper::close() {
     if (this->webSocket.getReadyState() == ix::ReadyState::Open) {
-        this->webSocket.close();
+        this->webSocket.stop();
     }
 }
 
