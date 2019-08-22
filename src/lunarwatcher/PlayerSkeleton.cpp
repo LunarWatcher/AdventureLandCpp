@@ -20,7 +20,7 @@ void PlayerSkeleton::move(double x, double y) {
                 {"y", character->getY()},
                 {"going_x", x},
                 {"going_y", y},
-                {"m", character->getMapId()} // TODO: find method that returns map index
+                {"m", character->getMapId()} 
             });
 }
 

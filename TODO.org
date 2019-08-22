@@ -1,13 +1,13 @@
 * TODOs
-** SocketWrapper [50%]
+** SocketWrapper [75%]
    - [X] Callback to player when connected and authenticated
    - [X] Parse data
-   - [ ] Authentication
+   - [X] Authentication
    - [ ] Disconnection safety
 ** Player [0%]
-   - [-] API functions [1/5]
+   - [-] API functions [2/5]
      - [X] Move
-     - [ ] Attack
+     - [X] Attack
      - [ ] Smart move
      - [ ] on_cm and send_cm
      - [ ] Other non-primary functions

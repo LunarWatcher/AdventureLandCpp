@@ -7,7 +7,6 @@
 namespace advland {
 
 #define PROXY_GETTER_IMPL(cls, name, capName, type) type cls::get##capName() { return data[name].get<type>(); }
-#define PROXY_GETTER_JSON(cls, name, capName) const nlohmann::json cls::get##capName() { return data[name]; }
 Player::Player(std::string name, std::string uid, std::string fullUrl, AdvLandClient& client, PlayerSkeleton& skeleton)
         : wrapper(uid, fullUrl, client, *this), client(client), skeleton(skeleton), name(name), characterId(uid), data(nlohmann::json::object()) {
 }
