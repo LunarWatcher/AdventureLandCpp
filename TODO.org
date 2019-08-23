@@ -5,14 +5,18 @@
    - [X] Authentication
    - [ ] Disconnection safety
 ** Player [0%]
-   - [-] API functions [2/5]
+   - [-] API functions [4/7]
      - [X] Move
+     - [X] canMove
      - [X] Attack
+     - [X] looting 
      - [ ] Smart move
      - [ ] on_cm and send_cm
      - [ ] Other non-primary functions
-** AdvLandClient [100%]
+** AdvLandClient [50%]
    - [X] Add players and connection with blocking and non-blocking variants
+   - [ ] Add credentials to a gitignored JSON file and prefer files over
+     credentials in code
 ** Documentation [0%]
    - [ ] Correct the login documentation
    - [ ] Update docs with login instructions and use of auth

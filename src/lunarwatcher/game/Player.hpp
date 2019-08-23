@@ -85,6 +85,7 @@ public:
     const nlohmann::json& getInventory() {
         return data["items"];
     }
+    int countOpenInventory();
     
     friend class PlayerSkeleton;
 };

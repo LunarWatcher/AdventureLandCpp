@@ -56,6 +56,7 @@ private:
     static 
     #endif 
     std::map<std::string, nlohmann::json> entities;
+    std::map<std::string, nlohmann::json> chests;
 
     // Functions
     void triggerInternalEvents(std::string eventName, const nlohmann::json& event);
@@ -100,22 +101,19 @@ public:
      */
     SocketConnectStatusCode connect();
     void close();
-
     void sendPing();
-
     void emit(std::string event, const nlohmann::json& json);
+
+    void onDisappear(const nlohmann::json& event);
+    
 #if USE_STATIC_ENTITIES
     static
 #endif
     std::map<std::string, nlohmann::json>& getEntities();
+    std::map<std::string, nlohmann::json>& getChests();
     ix::ReadyState getReadyState() { return webSocket.getReadyState(); }
     
 };
-
-#if USE_STATIC_ENTITIES
-std::map<string, nlohmann::json> SocketWrapper::entities = {};
-#endif
-
 
 } // namespace advland
 #endif

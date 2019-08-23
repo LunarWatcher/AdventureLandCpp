@@ -5,6 +5,7 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
 #include <regex>
+#include "utils/ParsingUtils.hpp"
 
 namespace advland {
 bool AdvLandClient::running = true;
@@ -306,8 +307,8 @@ void AdvLandClient::processInternals() {
                     if (entity.find("speed") == entity.end() && entity["type"] == "monster") {
                         std::string type = entity["mtype"];
                         entity["speed"] = this->getData()["monsters"][type]["speed"].get<double>();
-                    } 
-                    if (!entity.value("rip", false) && !entity.value("dead", false) && entity.value("moving", false)) {
+                    }
+                    if (!getOrElse(entity, "rip", false) && !getOrElse(entity, "dead", false) && getOrElse(entity, "moving", false)) {
                         if (entity.value("move_num", 0l) != entity.value("engaged_move", 0l) || (entity.find("ref_speed") != entity.end() && entity["ref_speed"] != entity["speed"])) {
                             entity["ref_speed"] = entity["speed"];
                             entity["from_x"] = entity["x"];
@@ -330,7 +331,7 @@ void AdvLandClient::processInternals() {
             // Executed if entities are shared across all players.
 #if USE_STATIC_ENTITIES
             for (auto& [id, entity] : SocketWrapper::getEntities()) {
-                if (entity.value("rip", false) == false && entity.value("dead", false) == false && entity.value("moving", false)) {
+                if (!getOrElse(entity, "rip", false) && !getOrElse(entity, "dead", false) && getOrElse(entity, "moving", false)) {
                     if (entity.find("speed") == entity.end() && entity["type"] == "monster") {
                         std::string type = entity["mtype"];
                         entity["speed"] = this->getData()["monsters"][type]["speed"].get<double>();

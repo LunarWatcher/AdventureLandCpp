@@ -22,10 +22,13 @@ private:
     static auto inline const mSkeletonLogger = spdlog::stdout_color_mt("PlayerSkeleton"); 
     // "Normal" timers
     Timer attackTimer;
+    Timer lootTimer;
 
     // Skill timers (change frequently enough to warrant the use of a map)
     std::map<std::string, Timer> timers;
     std::string lastIdSent;
+
+    int searchGeometry(const nlohmann::json& lines, int minMoveVal);
 protected:
     std::shared_ptr<Player> character;
 public:
@@ -48,12 +51,12 @@ public:
     virtual void onStop() = 0;
    
     // API functions
-    bool canMove(double x, double y);
+    bool canMove(double x, double y, int px = 0, int py = 0, bool trigger=false);
     bool canWalk(const nlohmann::json& entity);
     bool canAttack(nlohmann::json& entity);
     bool canUse(const std::string& skill);
     bool inAttackRange(nlohmann::json& entity);
-        
+     
     void move(double x, double y);
     void say(std::string message);
     // TODO partySay (message: msg, party: true)
@@ -64,6 +67,7 @@ public:
 
     void useSkill(const std::string& ability);
     void use(const std::string& skill);
+    void loot(bool safe = true/*, std::string sendChestIdsTo=""*/);
 
     nlohmann::json getTarget();
     void changeTarget(const nlohmann::json& entity);

@@ -51,5 +51,12 @@ const GameData& PlayerSkeleton::getGameData() {
     return character->getClient().getData();
 }
 
+int Player::countOpenInventory() {
+    int count = 0;
+    for (auto& item : getInventory()) {
+        if (item.is_null()) count++;
+    }
+    return count;
+}
 #undef PROXY_GETTER_IMPL
 } // namespace advland
