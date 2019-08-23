@@ -1,6 +1,9 @@
 # Status notice
 
-Note that this is a work in progress, and currently doesn't work at all for actually writing a bot. 
+Note that this is a work in progress, and only supports primitive bot scripting at the moment. If you're looking for a fully working alternative while this is being built, check out [ALBot](https://github.com/NexusNull/ALBot/), or stick to the website/steam client. 
+
+If you want to get started with this client, the rough equivalent of default.js is available in the `apidocs` folder. Note that the code is subject to unnotified changes while the library is being developed. 
+
 
 # Setup
 
@@ -22,7 +25,7 @@ This is intended to be a library, but in its current state, it isn't importable 
 
 # Library use setup
 
-This project builds around SCons. Other build systems either need to invoke SCons and manually find the paths, or in some other way compile it. A conan package is planned in the future.
+This project builds around SCons. Other build systems either need to invoke SCons and manually find the paths, or in some other way compile it. A conan package is planned in the future. Note that export as an SConstruct isn't fully supported yet, and like everything else, is a work in progress.
 
 If you're on Windows, you'll need to install the Win32 Python package:
 
