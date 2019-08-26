@@ -253,7 +253,7 @@ void PlayerSkeleton::attack(nlohmann::json& entity) {
     attackTimer.reset();
     character->getSocket().emit("attack", {{"id", entity["id"]}});
 }
-void PlayerSkeleton::attack(nlohmann::json& entity) {
+void PlayerSkeleton::heal(nlohmann::json& entity) {
     if (!canAttack(entity)) return;
     attackTimer.reset();
     character->getSocket().emit("heal", {{"id", entity["id"]}});
