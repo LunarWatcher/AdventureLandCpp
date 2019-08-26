@@ -84,7 +84,7 @@ void DefaultSkeleton::bot() {
         
         // the is_object check may be useless. It was added during debugging and might be unnecessary now that it has been fixed.
         if (!target.is_null() && target.is_object() && canAttack(target)) {
-            mLogger->info("Attacking: {}", target.dump());
+            // mLogger->info("Attacking: {}", target.dump());
             if(!inAttackRange(target)) {
                 move(character->getX()  + (double(target["x"]) - character->getX()) / 2.0,
                         character->getY() + (double(target["y"]) - character->getY()) / 2.0);

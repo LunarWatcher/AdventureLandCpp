@@ -95,6 +95,7 @@ if (gcc or clang):
         "-Wno-c++11-narrowing")                            # Except this one. Go away. Ktx
 else:
     compileFlags = "/std:c++17"
+
 if "debug" in env and env["debug"] is False:
     if (clang or gcc):
         compileFlags += " -O3 "

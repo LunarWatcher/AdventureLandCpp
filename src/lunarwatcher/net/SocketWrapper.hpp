@@ -3,18 +3,19 @@
 
 #ifndef USE_STATIC_ENTITIES
 #define USE_STATIC_ENTITIES false
-#endif 
+#endif
 
+#include "lunarwatcher/utils/SocketIOParser.hpp"
 #include <functional>
 #include <ixwebsocket/IXWebSocket.h>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <nlohmann/json.hpp>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <vector>
-#include <map>
-#include "lunarwatcher/utils/SocketIOParser.hpp"
 
 namespace advland {
 
@@ -40,22 +41,24 @@ private:
     Player& player;
 
     std::string characterId;
-    // ping managing 
+    // ping managing
     int pingInterval;
     std::chrono::time_point<std::chrono::high_resolution_clock> lastPing;
 
     // Entity management
     bool hasReceivedFirstEntities;
 
-    // Callbacks 
+    // Callbacks
     std::vector<RawCallback> rawCallbacks;
     std::map<std::string, std::vector<EventCallback>> eventCallbacks;
 
-    // Entities 
-    #if USE_STATIC_ENTITIES 
-    static 
-    #endif 
-    std::map<std::string, nlohmann::json> entities;
+// Entities
+#if USE_STATIC_ENTITIES
+    static
+#endif
+        std::map<std::string, nlohmann::json> entities;
+    
+    std::mutex chestGuard;
     std::map<std::string, nlohmann::json> chests;
 
     // Functions
@@ -66,13 +69,14 @@ private:
     void login();
 
     /**
-     * Cleans up input to avoid type bugs introduced by the backend. 
-     * One notable use for this is with the `rip` attribute. 
-     * Some chars have an integer value as the value, but this 
-     * client expects a bool, meaning anything else will trigger a 
+     * Cleans up input to avoid type bugs introduced by the backend.
+     * One notable use for this is with the `rip` attribute.
+     * Some chars have an integer value as the value, but this
+     * client expects a bool, meaning anything else will trigger a
      * crash.
      */
-    void sanitizeInput(nlohmann::json& entity); 
+    void sanitizeInput(nlohmann::json& entity);
+
 public:
     /**
      * Initializes a general, empty SocketWrapper ready to connect.
@@ -86,7 +90,7 @@ public:
 
     /**
      * Registers a listener that receives raw events straight from the websocket. These aren't
-     * parsed - at all - and the receiving function is expected to do so. 
+     * parsed - at all - and the receiving function is expected to do so.
      *
      * This only sends messages - other status codes aren't sent.
      */
@@ -95,24 +99,29 @@ public:
      * Equivalent of socket.on
      */
     void registerEventCallback(std::string event, std::function<void(const nlohmann::json&)> callback);
+    void deleteEntities();
 
+    void receiveLocalCm(std::string from, const nlohmann::json& message);
     /**
      *  Connects a user. this should only be run from the Player class
      */
     SocketConnectStatusCode connect();
     void close();
     void sendPing();
-    void emit(std::string event, const nlohmann::json& json);
+    void emit(std::string event, const nlohmann::json& json = {});
 
     void onDisappear(const nlohmann::json& event);
-    
+
 #if USE_STATIC_ENTITIES
     static
 #endif
-    std::map<std::string, nlohmann::json>& getEntities();
+        std::map<std::string, nlohmann::json>&
+        getEntities();
     std::map<std::string, nlohmann::json>& getChests();
     ix::ReadyState getReadyState() { return webSocket.getReadyState(); }
-    
+    std::mutex& getChestGuard() {
+        return chestGuard;
+    }
 };
 
 } // namespace advland

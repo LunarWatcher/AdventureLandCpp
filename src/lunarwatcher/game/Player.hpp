@@ -68,7 +68,7 @@ public:
     AdvLandClient& getClient() { return client; }
     PlayerSkeleton& getSkeleton() { return skeleton; }
     SocketWrapper& getSocket();
-
+    
     void onConnect();
     // Proxies
     PROXY_GETTER(X, double)
@@ -81,7 +81,8 @@ public:
     PROXY_GETTER(MapId, int)
     PROXY_GETTER(Range, int)
     PROXY_GETTER(CType, std::string)
-
+    PROXY_GETTER(Speed, int)    
+    const std::string& getName() { return name; }
     const nlohmann::json& getInventory() {
         return data["items"];
     }

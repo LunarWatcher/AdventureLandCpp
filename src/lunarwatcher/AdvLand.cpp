@@ -280,10 +280,12 @@ void AdvLandClient::processInternals() {
         auto cDelta = delta;
 
         while (cDelta > 0) {
+
             for (auto& playerPtr : bots) {
                 if (!playerPtr->hasStarted()) {
                     continue;
                 }
+                playerPtr->getSocket().deleteEntities();
                 if (playerPtr->isAlive() && playerPtr->isMoving()) {
                     nlohmann::json& entity = playerPtr->getRawJson();
                     if (entity.find("ref_speed") == entity.end() || (entity.find("ref_speed") != entity.end() && entity["ref_speed"] != entity["speed"])) {
@@ -359,6 +361,23 @@ void AdvLandClient::processInternals() {
         // Maintain 60 "FPS" (1000 milliseconds / 60 FPS is roughly 16.66667 ms between frames)
         std::this_thread::sleep_for(std::chrono::milliseconds(17));
     }
+}
+
+bool AdvLandClient::isLocalPlayer(std::string username) {
+    for (auto& p : bots) {
+        if (p->getName() == username) return true;
+    }
+    return false;
+}
+
+void AdvLandClient::dispatchLocalCm(std::string to, const nlohmann::json& message, std::string from) {
+    for (auto& p : bots) {
+        if (p->getName() == to) {
+            p->getSocket().receiveLocalCm(from, message);
+            return;
+        }
+    }
+    mLogger->error("Failed to find {} in the local client.", to);
 }
 
 void AdvLandClient::kill() { 

@@ -1,5 +1,6 @@
 #include "net/SocketWrapper.hpp"
 #include "AdvLand.hpp"
+#include "math/Logic.hpp"
 #include "utils/ParsingUtils.hpp"
 #include <algorithm>
 
@@ -53,7 +54,7 @@ void SocketWrapper::initializeSystem() {
     this->registerEventCallback("start", [this](const nlohmann::json& event) {
         // The start event contains necessary data to populate the character
         nlohmann::json mut = event;
-        // Used for, among other things, canMove. This contains the character bounding box 
+        // Used for, among other things, canMove. This contains the character bounding box
         // I have no idea what the letters symbolize.
         mut["base"] = {{"h", 8}, {"v", 7}, {"vn", 2}};
         this->player.updateJson(mut);
@@ -69,12 +70,6 @@ void SocketWrapper::initializeSystem() {
             hasReceivedFirstEntities = true;
         }
 
-        for (auto it = entities.begin(); it != entities.end();) {
-            if (getOrElse((*it).second, "dead", false) || getOrElse((*it).second, "rip", false)) { 
-                it = entities.erase(it);
-            } else
-                ++it;
-        }
         if (event.find("players") != event.end()) {
             nlohmann::json players = event["players"];
             for (auto& player : players) {
@@ -128,15 +123,14 @@ void SocketWrapper::initializeSystem() {
     // Gameplay
 
     // Methods recording the disappearance of entities.
-    // Death is also registered locally using this socket event 
+    // Death is also registered locally using this socket event
     this->registerEventCallback("death", [this](const nlohmann::json& event) {
-            nlohmann::json copy = event;
-            copy["death"] = true;
-            onDisappear(copy);
+        nlohmann::json copy = event;
+        copy["death"] = true;
+        onDisappear(copy);
     });
-#define onDisappearConsumer(eventName) this->registerEventCallback(eventName, [this](const nlohmann::json& event) { \
-            onDisappear(event); \
-        });
+#define onDisappearConsumer(eventName)                                                                                 \
+    this->registerEventCallback(eventName, [this](const nlohmann::json& event) { onDisappear(event); });
 
     onDisappearConsumer("disappear");
     onDisappearConsumer("notthere");
@@ -144,13 +138,30 @@ void SocketWrapper::initializeSystem() {
 
     // Chests are recorded with the drop event
     this->registerEventCallback("drop", [this](const nlohmann::json& event) {
-        chests[event["id"]] = event;
+        std::lock_guard<std::mutex> guard(chestGuard);
+        chests[event["id"].get<std::string>()] = event;
     });
     this->registerEventCallback("chest_opened", [this](const nlohmann::json& event) {
+        std::lock_guard<std::mutex> guard(chestGuard);
         chests.erase(event["id"].get<std::string>()); 
     });
+    // This contains updates to the player entity. Unlike other entities (AFAIK), these aren't
+    // sent using the entities event.
+    this->registerEventCallback("player", [this](const nlohmann::json& event) {
+        int cachedSpeed = player.getSpeed();
+        player.updateJson(event);
+        if (player.getSpeed() != cachedSpeed) {
+            if (player.isMoving()) {
+                auto vxy = MovementMath::calculateVelocity(player.getRawJson());
+                player.getRawJson()["vx"] = vxy.first;
+                player.getRawJson()["vy"] = vxy.second;
+            }
+        }
+    });
+    this->registerEventCallback("cm", [this](const nlohmann::json& event) {
+        player.getSkeleton().onCm(event["name"].get<std::string>(), event["message"]); 
+    });
 }
-
 
 void SocketWrapper::login() {
     std::string& auth = client.getAuthToken();
@@ -167,7 +178,7 @@ void SocketWrapper::login() {
 void SocketWrapper::emit(std::string event, const nlohmann::json& json) {
     if (this->webSocket.getReadyState() == ix::ReadyState::Open) {
         std::string i = "42[\"" + event + "\"," + json.dump() + "]";
-        mLogger->info("emitting \"{}\"", i);
+         mLogger->info("emitting \"{}\"", i);
         this->webSocket.send(i);
     } else {
         mLogger->error("Attempting to call emit on a socket that hasn't opened yet.");
@@ -319,11 +330,24 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
     }
 }
 
+void SocketWrapper::receiveLocalCm(std::string from, const nlohmann::json& message) {
+    player.getSkeleton().onCm(from, message);
+}
+
 void SocketWrapper::dispatchEvent(std::string eventName, const nlohmann::json& event) {
     if (eventCallbacks.find(eventName) != eventCallbacks.end()) {
         for (auto& callback : eventCallbacks[eventName]) {
             callback(event);
         }
+    }
+}
+
+void SocketWrapper::deleteEntities() {
+    for (auto it = entities.begin(); it != entities.end();) {
+        if (getOrElse((*it).second, "dead", false) || getOrElse((*it).second, "rip", false)) {
+            it = entities.erase(it);
+        } else
+            ++it;
     }
 }
 
@@ -347,7 +371,7 @@ void SocketWrapper::onDisappear(const nlohmann::json& event) {
         if (getOrElse(event, "invis", false)) {
             entity["invis"] = true;
         }
-    } 
+    }
 }
 
 SocketConnectStatusCode SocketWrapper::connect() {

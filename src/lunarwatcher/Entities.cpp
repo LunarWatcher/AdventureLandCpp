@@ -45,11 +45,8 @@ PROXY_GETTER_IMPL(Player, "map", Map, std::string)
 PROXY_GETTER_IMPL(Player, "m", MapId, int)
 PROXY_GETTER_IMPL(Player, "range", Range, int)
 PROXY_GETTER_IMPL(Player, "ctype", CType, std::string)
+PROXY_GETTER_IMPL(Player, "speed", Speed, int)
 SocketWrapper& Player::getSocket() { return wrapper; }
-
-const GameData& PlayerSkeleton::getGameData() {
-    return character->getClient().getData();
-}
 
 int Player::countOpenInventory() {
     int count = 0;

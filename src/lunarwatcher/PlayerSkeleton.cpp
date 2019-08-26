@@ -2,9 +2,8 @@
 #include "AdvLand.hpp"
 #include "game/Player.hpp"
 #include "math/Logic.hpp"
-#include "utils//ParsingUtils.hpp"
+#include "utils/ParsingUtils.hpp"
 #include <chrono>
-#include <math.h>
 
 namespace advland {
 
@@ -155,7 +154,6 @@ void PlayerSkeleton::useSkill(const std::string& ability) {
 }
 
 void PlayerSkeleton::use(const std::string& item) {
-    bool consumableItem = false;
     auto& itemData = character->getClient().getData()["items"];
     for (unsigned long long i = 0; i < character->getInventory().size(); i++) {
         const nlohmann::json& iItem = character->getInventory()[i];
@@ -165,21 +163,24 @@ void PlayerSkeleton::use(const std::string& item) {
             auto& gives = iItemData["gives"];
             for (auto& effect : gives) {
                 if (effect[0] == item) {
-                    consumableItem = true;
                     character->getSocket().emit("equip", {{"num", i}}); 
                     return;
                 }
             }
         }
     }
+    character->getSocket().emit("use", {{"item", item}});
+}
 
-    if (!consumableItem) {
-        character->getSocket().emit("use", {{"item", item}});
-    }
+
+void PlayerSkeleton::equip(int inventoryIdx, std::string itemSlot) {
+    character->getSocket().emit("equip", {{"num", inventoryIdx}, {"slot", itemSlot}});
 }
 
 void PlayerSkeleton::loot(bool safe) {
     int looted = 0;
+    
+    std::lock_guard<std::mutex> guard(getSocket().getChestGuard());
     if (lootTimer.check() < 300) 
         return;
 
@@ -187,7 +188,7 @@ void PlayerSkeleton::loot(bool safe) {
         return;
     if (character->getSocket().getChests().size() == 0)
         return;
-    for (auto& [id, chest] : character->getSocket().getChests()) {
+    for (auto& [id, chest] : character->getSocket().getChests()) { 
         if (safe && chest["items"].get<int>() > character->countOpenInventory()) continue;  
         
         character->getSocket().emit("open_chest", {{"id", id}});
@@ -248,10 +249,83 @@ bool PlayerSkeleton::inAttackRange(nlohmann::json& entity) {
 
 void PlayerSkeleton::say(std::string message) { character->getSocket().emit("say", {{"message", message}}); }
 
+void PlayerSkeleton::sendCm(const nlohmann::json& to, const nlohmann::json& message) {
+    if (to.is_array() && to.size() == 0) {
+        mSkeletonLogger->error("Cannot send a code message to no one.");
+        return;
+    }
+    if (to.is_string() && character->getClient().isLocalPlayer(std::string(to))) {
+        character->getClient().dispatchLocalCm(to, message, character->getName());
+    } else if (to.is_array() && to.size() == 1 && character->getClient().isLocalPlayer(std::string(to[0]))) { 
+        std::string charName = std::string(to[0]);
+        if (character->getClient().isLocalPlayer(charName))
+            character->getClient().dispatchLocalCm(charName, message, character->getName());
+    }else {
+        if (to.is_string())
+            getSocket().emit("cm", {{"to", nlohmann::json::array({to.get<std::string>()})}, {"message", message}});
+        else {
+            if (!to.is_array()) {
+                mSkeletonLogger->error("Attempted to call sendCm with the \"to\" parameter that isn't a string or an object. Ignoring.");
+                return;
+            }
+
+            for (auto& username : to) {
+                if (username.is_string()) {
+                    if (character->getClient().isLocalPlayer(username)) {
+                        character->getClient().dispatchLocalCm(username, message, character->getName());
+                    } else {
+                        getSocket().emit("cm", {{"to", nlohmann::json::array({username.get<std::string>()})}, {"message", message}});
+                    }
+                }
+            }
+
+        }
+    }
+}
+
 void PlayerSkeleton::attack(nlohmann::json& entity) {
     if (!canAttack(entity)) return;
     attackTimer.reset();
-    character->getSocket().emit("attack", {{"id", entity["id"]}});
+    if (entity.is_object())
+        character->getSocket().emit("attack", {{"id", entity["id"].get<std::string>()}});
+    else 
+        character->getSocket().emit("attack", {{"id", entity.get<std::string>()}});
+}
+
+void PlayerSkeleton::heal(nlohmann::json& entity) {
+   if (!canAttack(entity)) return;
+    attackTimer.reset();
+    if (entity.is_object()) 
+        character->getSocket().emit("heal", {{"id", entity["id"].get<std::string>()}});
+    else 
+        character->getSocket().emit("heal", {{"id", entity.get<std::string>()}});
+}
+
+void PlayerSkeleton::sendPartyInvite(std::string name, bool isRequest) {
+    character->getSocket().emit("party", {
+            {"event", isRequest ? "request" : "invite"},
+            {"name", name}
+        });
+}
+
+void PlayerSkeleton::sendPartyRequest(std::string name) {
+    sendPartyInvite(name, true);
+}
+
+void PlayerSkeleton::acceptPartyInvite(std::string name) {
+    character->getSocket().emit("party", {{"event", "accept"}, {"name", name}});
+}
+
+void PlayerSkeleton::acceptPartyRequest(std::string name) {
+    character->getSocket().emit("party", {{"event", "raccept"}, {"name", name}});
+}
+
+void PlayerSkeleton::leaveParty() {
+    character->getSocket().emit("party", {{"event", "leave"}});
+}
+
+void PlayerSkeleton::respawn() {
+    character->getSocket().emit("respawn");
 }
 
 nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) {
@@ -315,5 +389,10 @@ void PlayerSkeleton::sendTargetLogic(const nlohmann::json& target) {
         lastIdSent = target["id"];
     }
 }
+
+const GameData& PlayerSkeleton::getGameData() {
+    return character->getClient().getData();
+}
+SocketWrapper& PlayerSkeleton::getSocket() { return character->wrapper; }
 
 } // namespace advland

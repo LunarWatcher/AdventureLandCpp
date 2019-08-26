@@ -118,7 +118,10 @@ public:
 
     std::string& getUserId() { return userId; }
     std::string& getAuthToken() { return userAuth; }
-    GameData& getData() { return data; }    
+    GameData& getData() { return data; }   
+
+    bool isLocalPlayer(std::string username);
+    void dispatchLocalCm(std::string to, const nlohmann::json& message, std::string from);
     /**
      * This kills all the bot connections, as well as threads created by the client and players.
      * This does NOT kill threads created by the developer in a PlayerSkeleton.
