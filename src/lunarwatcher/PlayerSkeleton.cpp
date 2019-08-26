@@ -253,6 +253,11 @@ void PlayerSkeleton::attack(nlohmann::json& entity) {
     attackTimer.reset();
     character->getSocket().emit("attack", {{"id", entity["id"]}});
 }
+void PlayerSkeleton::attack(nlohmann::json& entity) {
+    if (!canAttack(entity)) return;
+    attackTimer.reset();
+    character->getSocket().emit("heal", {{"id", entity["id"]}});
+}
 
 nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) {
     double closest = 999990;
