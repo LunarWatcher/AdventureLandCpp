@@ -64,7 +64,8 @@ public:
         
     void attack(nlohmann::json& entity);
     nlohmann::json getNearestMonster(const nlohmann::json& attribs);
-
+    void heal(nlohmann::json& entity);
+    
     void useSkill(const std::string& ability);
     void use(const std::string& skill);
     void loot(bool safe = true/*, std::string sendChestIdsTo=""*/);
