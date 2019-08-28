@@ -161,6 +161,15 @@ void SocketWrapper::initializeSystem() {
     this->registerEventCallback("cm", [this](const nlohmann::json& event) {
         player.getSkeleton().onCm(event["name"].get<std::string>(), event["message"]); 
     });
+    this->registerEventCallback("invite", [this](const nlohmann::json& event) {
+        player.getSkeleton().onPartyInvite(event["name"].get<std::string>());
+    });
+    this->registerEventCallback("request", [this](const nlohmann::json& event) {
+        player.getSkeleton().onPartyRequest(event["name"].get<std::string>());
+    });
+    this->registerEventCallback("party_update", [this](const nlohmann::json& event) {
+        player.setParty(event["party"]); 
+    });
 }
 
 void SocketWrapper::login() {
@@ -178,7 +187,7 @@ void SocketWrapper::login() {
 void SocketWrapper::emit(std::string event, const nlohmann::json& json) {
     if (this->webSocket.getReadyState() == ix::ReadyState::Open) {
         std::string i = "42[\"" + event + "\"," + json.dump() + "]";
-         mLogger->info("emitting \"{}\"", i);
+        mLogger->info("emitting \"{}\"", i);
         this->webSocket.send(i);
     } else {
         mLogger->error("Attempting to call emit on a socket that hasn't opened yet.");

@@ -46,6 +46,8 @@ PROXY_GETTER_IMPL(Player, "m", MapId, int)
 PROXY_GETTER_IMPL(Player, "range", Range, int)
 PROXY_GETTER_IMPL(Player, "ctype", CType, std::string)
 PROXY_GETTER_IMPL(Player, "speed", Speed, int)
+PROXY_GETTER_IMPL(Player, "gold", Gold, long long)
+
 SocketWrapper& Player::getSocket() { return wrapper; }
 
 int Player::countOpenInventory() {

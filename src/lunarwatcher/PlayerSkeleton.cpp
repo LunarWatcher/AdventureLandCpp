@@ -183,22 +183,30 @@ void PlayerSkeleton::loot(bool safe) {
     std::lock_guard<std::mutex> guard(getSocket().getChestGuard());
     if (lootTimer.check() < 300) 
         return;
-
-    if (safe && character->countOpenInventory() == 0)
-        return;
+ 
     if (character->getSocket().getChests().size() == 0)
         return;
     for (auto& [id, chest] : character->getSocket().getChests()) { 
-        if (safe && chest["items"].get<int>() > character->countOpenInventory()) continue;  
+        if (safe && chest["items"].get<int>() != 0 && chest["items"].get<int>() > character->countOpenInventory()) continue;  
         
         character->getSocket().emit("open_chest", {{"id", id}});
 
         looted++;
         if (looted == 2)
-            return;
+            break;   
     }
     if (looted > 1) 
         lootTimer.reset();
+}
+
+void PlayerSkeleton::sendGold(std::string to, unsigned long long amount) {
+    if (to == "") return;
+    getSocket().emit("send", {{"name", to}, {"gold", amount}});
+}
+
+void PlayerSkeleton::sendItem(std::string to, int inventoryIdx, unsigned int count) {
+    if (to == "") return;
+    getSocket().emit("send", {{"name", to}, {"num", inventoryIdx}, {"q", count}});
 }
 
 bool PlayerSkeleton::canUse(const std::string& name) {

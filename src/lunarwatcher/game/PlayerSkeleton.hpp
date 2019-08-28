@@ -104,6 +104,9 @@ public:
     void use(const std::string& skill);
     void loot(bool safe = true/*, std::string sendChestIdsTo=""*/);
 
+    void sendGold(std::string to, unsigned long long amount);
+    void sendItem(std::string to, int itemIdx, unsigned int count = 1);
+
     /**
      * Equips an item from the specified inventory index. 
      * The itemSlot parameter is used when specifying which 

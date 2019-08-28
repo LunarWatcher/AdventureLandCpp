@@ -21,9 +21,10 @@ private:
     std::string name;
     std::string characterId;
     nlohmann::json data;
-    // TODO: variables, standard functions
-    
+    nlohmann::json party;
+
     bool mHasStarted = false;
+ 
 public:
     /**
      * Creates a new player.
@@ -81,13 +82,24 @@ public:
     PROXY_GETTER(MapId, int)
     PROXY_GETTER(Range, int)
     PROXY_GETTER(CType, std::string)
-    PROXY_GETTER(Speed, int)    
+    PROXY_GETTER(Speed, int)   
+    PROXY_GETTER(Gold, long long)
     const std::string& getName() { return name; }
     const nlohmann::json& getInventory() {
         return data["items"];
     }
     int countOpenInventory();
-    
+   
+    /**
+     * Updates the party. This function should NEVER be called from bot code - this is used to update
+     * the party data by using the party_update event.
+     */
+    void setParty(const nlohmann::json& j) {
+        party.update(j);
+    }
+
+    const nlohmann::json& getParty() { return party; }
+
     friend class PlayerSkeleton;
 };
 #undef PROXY_GETTER
