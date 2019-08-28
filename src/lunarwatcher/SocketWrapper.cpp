@@ -187,7 +187,7 @@ void SocketWrapper::login() {
 void SocketWrapper::emit(std::string event, const nlohmann::json& json) {
     if (this->webSocket.getReadyState() == ix::ReadyState::Open) {
         std::string i = "42[\"" + event + "\"," + json.dump() + "]";
-        mLogger->info("emitting \"{}\"", i);
+        // mLogger->info("emitting \"{}\"", i);
         this->webSocket.send(i);
     } else {
         mLogger->error("Attempting to call emit on a socket that hasn't opened yet.");
