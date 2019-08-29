@@ -6,24 +6,45 @@
 #include "spdlog/spdlog.h"
 #include <regex>
 #include "utils/ParsingUtils.hpp"
+#include <fstream>
 
 namespace advland {
 bool AdvLandClient::running = true;
 
-AdvLandClient::AdvLandClient(std::string email, std::string password)
+AdvLandClient::AdvLandClient() : AdvLandClient("credentials.json") {}
+
+AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) : session("adventure.land", 443,
+                  new Context(Context::CLIENT_USE, "", "", "", Context::VERIFY_NONE, 9, false,
+                              "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH")){
+    std::ifstream creds(credentialFileLocation);
+    if (!creds) {
+        mLogger->error("Failed to find credentials.json. To pass the email and password directly, please use AdvLandClient(std::string, std::string).");
+        mLogger->error("If you intended to use this function, make sure the file exists in the current working directory. If it does exist, make sure the permission are correct.");
+        throw "IO failure.";
+    }
+    nlohmann::json tmp;
+    creds >> tmp;
+    construct(tmp["email"], tmp["password"]); 
+}
+AdvLandClient::AdvLandClient(const nlohmann::json& email, const nlohmann::json& password)
         : session("adventure.land", 443,
                   new Context(Context::CLIENT_USE, "", "", "", Context::VERIFY_NONE, 9, false,
                               "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH")) {
+    construct(email, password); 
+}
+
+void AdvLandClient::construct(const nlohmann::json& email, const nlohmann::json& password) {
     ix::initNetSystem();
-    login(email, password);
+    login(email.get<std::string>(), password.get<std::string>());
     collectGameData();
     collectCharacters();
     validateSession();
     collectServers();
 }
+
 AdvLandClient::~AdvLandClient() { ix::uninitNetSystem(); }
 
-void AdvLandClient::login(std::string& email, std::string& password) {
+void AdvLandClient::login(const std::string& email, const std::string& password) {
 
     std::stringstream indexStream;
     HTTPRequest connect(HTTPRequest::HTTP_GET, "/", HTTPMessage::HTTP_1_1);

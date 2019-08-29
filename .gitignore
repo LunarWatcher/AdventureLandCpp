@@ -1,6 +1,7 @@
 bin/
 build/
 
+credentials.json
 config.log
 .sconf_temp
 .sconsign.dblite

@@ -52,11 +52,11 @@ public:
     virtual void onStop() = 0;
 
     // Party 
-    virtual void onPartyRequest(std::string name) {}  
-    virtual void onPartyInvite(std::string name) {}
+    virtual void onPartyRequest(std::string /* name */) {}  
+    virtual void onPartyInvite(std::string /* name */) {}
     
     virtual void onFriendRequest() {}
-    virtual void onCm(std::string name, const nlohmann::json& data) {}
+    virtual void onCm(std::string /* name */, const nlohmann::json& /* data */) {}
     
     // API functions
     bool canMove(double x, double y, int px = 0, int py = 0, bool trigger=false);

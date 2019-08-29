@@ -62,7 +62,7 @@ private:
 
     std::thread runner;
 
-    void login(std::string& email, std::string& password);
+    void login(const std::string& email, const std::string& password);
     void collectGameData();
     void collectCharacters();
     void collectServers();
@@ -74,9 +74,11 @@ private:
                      bool auth, const std::vector<CookiePair>& formData = {});
 
     void processInternals();
-    
+    void construct(const nlohmann::json& email, const nlohmann::json& password);
 public:
-    AdvLandClient(std::string email, std::string password);
+    AdvLandClient();
+    AdvLandClient(const std::string& credentialFileLocation);
+    AdvLandClient(const nlohmann::json& email, const nlohmann::json& password);
     virtual ~AdvLandClient();
 
     void addPlayer(std::string name, Server& server, PlayerSkeleton& skeleton) {
