@@ -33,14 +33,14 @@ bool PlayerSkeleton::canMove(double x, double y, int px, int py, bool trigger) {
         playerY += py;
     }
     
-    auto minXTarget = std::min(playerX, x); // k
-    auto maxXTarget = std::max(playerX, x); // j
+    auto minXTarget = std::min(playerX, x);
+    auto maxXTarget = std::max(playerX, x);
 
-    auto minYTarget = std::min(playerY, y); // h
-    auto maxYTarget = std::max(playerY, y); // g
+    auto minYTarget = std::min(playerY, y);
+    auto maxYTarget = std::max(playerY, y);
 
-    auto& xLines = geom["x_lines"]; // bsearch_start a
-    auto& yLines = geom["y_lines"]; // bsearch_start a
+    auto& xLines = geom["x_lines"]; 
+    auto& yLines = geom["y_lines"]; 
 
     if (!trigger) {
         // Match the hitbox
@@ -50,8 +50,8 @@ bool PlayerSkeleton::canMove(double x, double y, int px, int py, bool trigger) {
                                                 {-int(base["h"]), -int(base["v"])},
                                                 {-int(base["h"]), -int(base["v"])}};
         for (auto& i : hitbox) {
-            int hitboxX = i[0]; // z
-            int hitboxY = i[1]; // y
+            int hitboxX = i[0];
+            int hitboxY = i[1];
             int targetX = x + hitboxX;
             int targetY = y + hitboxY;
             if(!canMove(targetX, targetY, hitboxX, hitboxY, true)) {
@@ -135,6 +135,117 @@ void PlayerSkeleton::move(double x, double y) {
                                          {"going_x", x},
                                          {"going_y", y},
                                          {"m", character->getMapId()}});
+}
+
+bool PlayerSkeleton::smartMove(const nlohmann::json& destination) {
+    // The map to move to. Populated if one is specified.
+    // Otherwise, the map defaults to the current map for x/y moves.
+    std::string map;
+    std::string to;
+    
+    double tx, ty;
+
+    if (destination.is_string()) {
+        to = destination.get<std::string>();
+    } else {
+        if (destination.find("x") != destination.end()) {
+            tx = destination["x"].get<double>();
+            ty = destination["y"].get<double>();
+        } else if (destination.find("to") != destination.end()) {
+            to = destination["to"].get<std::string>();
+        }
+        if (destination.find("map") != destination.end())
+            map = destination["map"].get<std::string>();
+
+    }
+    if (to == "town") to = "main";
+   
+    // Structure helper:
+    // Map
+    auto& gameData = this->getGameData();
+    // Map
+    auto& monsters = gameData["monsters"];
+    if (monsters.find(to) != monsters.end()) {
+        // map 
+        const nlohmann::json& maps = gameData["maps"];
+        bool die = false;
+        for (auto& [mapName, mapData] : maps.items()) {
+            if (mapData.find("monsters") != mapData.end()) {
+                // List of maps 
+                auto& mapMonsters = mapData["monsters"];
+                for (auto& pack : mapMonsters) {
+                    if (pack["type"] != to
+                            || mapData["ignore"] == true 
+                            || mapData["instance"] == true) continue;
+                     
+                    // Some mobs, like phoenix and mvampire, use boundaries instead of bounday. 
+                    if (pack.find("boundaries") != pack.end()) { 
+                        // List of maps 
+                        auto& boundaries = pack["boundaries"];   
+                        if (cyclableSpawnCounts.find(to) == cyclableSpawnCounts.end()) 
+                            cyclableSpawnCounts[to] = 0;
+                        auto& boundary = boundaries[cyclableSpawnCounts[to]];
+                        map = boundary[0].get<std::string>();
+                        tx = (boundary[1].get<int>() + boundary[3].get<int>()) / 2.0;
+                        ty = (boundary[2].get<int>() + boundary[4].get<int>()) / 2.0;
+                        cyclableSpawnCounts[to] = (cyclableSpawnCounts[to] + 1) % boundaries.size();
+                        die = true;
+                        break;
+                    } else if (pack.find("boundary") != pack.end()) {
+                        auto& boundary = pack["boundary"];
+                        map = mapName;
+                        tx = (boundary[0].get<int>() + boundary[2].get<int>()) / 2.0;
+                        ty = (boundary[1].get<int>() + boundary[3].get<int>()) / 2.0;
+                        die = true;
+                        break;
+                    }
+
+                }
+            }
+            if (die) break;
+        }
+    } else if(to == "upgrade" || to == "compound"){
+        map = "main";
+        tx = -204;
+        ty = -129;
+    } else if (to == "exchange") {
+        map = "main";
+        tx = -26;
+        ty = -432;
+    } else if(to == "potions") {
+        std::string pMap = character->getMap();
+        if (pMap == "halloween") {
+            map = "halloween";
+            tx = 149;
+            ty = -182;
+        } else if(pMap == "winterland" || pMap == "winter_inn" || pMap == "winter_cave") {
+            map = "winter_inn";
+            tx = -84;
+            ty = -173;
+        } else {
+            map = "main";
+            tx = 56;
+            ty = -122;
+        }
+    } else if (to == "scrolls") {
+        map = "main";
+        tx = -465;
+        ty = -71;
+    }
+    if (map == "") {
+        mSkeletonLogger->error("Failed to recognize smart_move target: {}", destination.dump());
+        return false;
+    }
+    smart.initSmartMove(map, tx, ty);
+    return true;
+}
+
+bool PlayerSkeleton::smartMove(const nlohmann::json& destination, std::function<void()> callback) {
+    if (smartMove(destination)) {
+        this->smart.withCallback(callback);
+        return true;
+    }
+    return false;
 }
 
 bool PlayerSkeleton::canWalk(const nlohmann::json& entity) {
@@ -345,7 +456,7 @@ nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) 
     nlohmann::json j;
 
     for (auto& [id, entity] : entities) {
-
+        if (entity.is_null()) continue;
         if (entity.value("type", "") != "monster" ||
             (attribs.find("type") != attribs.end() && entity.value("mtype", "") != attribs["type"]) ||
             (attribs.find("min_xp") != attribs.end() && entity.value("xp", 0) < int(attribs["min_xp"])) ||
@@ -370,6 +481,7 @@ nlohmann::json PlayerSkeleton::getTarget() {
             if (getOrElse(json, "dead", false) || int(json["hp"]) <= 0) {
                 return nullptr;
             }
+            return json;
         } else
             return nullptr;
     }

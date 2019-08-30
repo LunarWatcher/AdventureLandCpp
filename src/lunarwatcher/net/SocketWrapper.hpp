@@ -59,6 +59,7 @@ private:
         std::map<std::string, nlohmann::json> entities;
     
     std::mutex chestGuard;
+    std::mutex deletionGuard;
     std::map<std::string, nlohmann::json> chests;
 
     // Functions

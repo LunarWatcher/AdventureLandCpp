@@ -15,9 +15,9 @@
      - [-] Other non-primary functions [1/2]
        - [X] Party
        - [ ] Skills 
-** AdvLandClient [50%]
+** AdvLandClient [100%]
    - [X] Add players and connection with blocking and non-blocking variants
-   - [ ] Add credentials to a gitignored JSON file and prefer files over
+   - [X] Add credentials to a gitignored JSON file and prefer files over
      credentials in code
 ** Documentation [0%]
    - [ ] Correct the login documentation

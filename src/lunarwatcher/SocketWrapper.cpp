@@ -352,6 +352,8 @@ void SocketWrapper::dispatchEvent(std::string eventName, const nlohmann::json& e
 }
 
 void SocketWrapper::deleteEntities() {
+    std::lock_guard<std::mutex> guard(deletionGuard);
+
     for (auto it = entities.begin(); it != entities.end();) {
         if (getOrElse((*it).second, "dead", false) || getOrElse((*it).second, "rip", false)) {
             it = entities.erase(it);

@@ -15,7 +15,32 @@
 #include "lunarwatcher/objects/GameData.hpp"
 #include "lunarwatcher/net/SocketWrapper.hpp"
 
+
 namespace advland {
+
+class SmartMoveHelper {
+private:
+    int x, y;
+    std::string map;
+    std::vector<std::pair<int, int>> checkpoints;
+    bool moving;
+    std::function<void()> callback;
+public:
+    SmartMoveHelper() {}
+    void initSmartMove(std::string map, int x, int y) {
+        this->map = map;
+        this->x = x;
+        this->y = y;
+        moving = false;
+        callback = 0;
+    }
+    bool isSmartMoving() {
+        return moving;
+    }
+    void withCallback(std::function<void()> callback) {
+        this->callback = callback;
+    }
+};
 
 class Player;
 class PlayerSkeleton {
@@ -28,8 +53,10 @@ private:
     // Skill timers (change frequently enough to warrant the use of a map)
     std::map<std::string, Timer> timers;
     std::string lastIdSent;
+    std::map<std::string, int> cyclableSpawnCounts;
 
     int searchGeometry(const nlohmann::json& lines, int minMoveVal);
+    SmartMoveHelper smart;
 protected:
     std::shared_ptr<Player> character;
 public:
@@ -66,6 +93,9 @@ public:
     bool inAttackRange(nlohmann::json& entity);
      
     void move(double x, double y);
+    bool smartMove(const nlohmann::json& destination);
+    bool smartMove(const nlohmann::json& destination, std::function<void()> callback);
+
     void say(std::string message);
     // TODO partySay (message: msg, party: true)
     // TODO pmSay (message: msg, name: user)
