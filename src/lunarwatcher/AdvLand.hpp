@@ -18,6 +18,7 @@
 #include "meta/Typedefs.hpp"
 #include "objects/GameData.hpp"
 #include "objects/Server.hpp"
+#include "movement/MapProcessing.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -59,6 +60,7 @@ private:
     std::vector<ServerCluster> serverClusters;
 
     std::vector<std::shared_ptr<Player>> bots;
+    MapProcessor mapData;
 
     std::thread runner;
 
@@ -75,6 +77,7 @@ private:
 
     void processInternals();
     void construct(const nlohmann::json& email, const nlohmann::json& password);
+    
 public:
     AdvLandClient();
     AdvLandClient(const std::string& credentialFileLocation);

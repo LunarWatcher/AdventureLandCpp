@@ -12,7 +12,7 @@ int PlayerSkeleton::searchGeometry(const nlohmann::json& lines, int minMoveVal) 
     int length = lines.size() - 1;
     int d;
     while (returnValue < length - 1) {
-        d = (returnValue + length) / 2;
+        d = (returnValue + length) / 2.0;
         if (lines[d][0] < minMoveVal) {
             returnValue = d;
         } else

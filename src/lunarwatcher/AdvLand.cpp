@@ -40,6 +40,8 @@ void AdvLandClient::construct(const nlohmann::json& email, const nlohmann::json&
     collectCharacters();
     validateSession();
     collectServers();
+
+    mapData.processMaps(data);
 }
 
 AdvLandClient::~AdvLandClient() { ix::uninitNetSystem(); }
@@ -316,7 +318,6 @@ void AdvLandClient::processInternals() {
                         std::pair<int, int> vxy = MovementMath::calculateVelocity(entity);
                         entity["vx"] = vxy.first;
                         entity["vy"] = vxy.second;
-                        mLogger->info("Calculated vectors: {}, {}", vxy.first, vxy.second);
                         entity["engaged_move"] = entity["move_num"];
                     }
                     MovementMath::moveEntity(entity, cDelta);
