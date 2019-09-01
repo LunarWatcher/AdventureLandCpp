@@ -26,17 +26,7 @@ private:
 
     std::map<std::pair<int, int>, bool> getAdjacentPixels(const double& x, const double& y, Map& map);
 
-    /**
-     * Plots out several general door paths, which are the base paths to base further 
-     * work on. 
-     */
-    std::vector<std::vector<std::string>> getDoorPathsTo(std::string from, std::string map);
-    /**
-     * Subfunction of getDoorPathsTo. This calculates the shortest paths by the least amount
-     * of doors (the cost is equal to the amount of doors)
-     */
-    std::vector<std::string> doorDijkstra(std::string from, std::string to,
-                                          std::map<std::string, std::vector<std::string>>& doorMap);
+    std::vector<std::string> doorDijkstra(std::string from, std::string to);
 
     void box(double x1, double y1, double x2, double y2, std::vector<bool>& map, int xSize);
     std::pair<double, double> toGameMapCoords(const double& x, const double& y, const double& minX, const double& minY);

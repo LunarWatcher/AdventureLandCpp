@@ -143,19 +143,10 @@ void MapProcessor::processMaps(const GameData& data) {
     }
     mLogger->info("Maps processed.");
     mLogger->info("Commence sanity-checking door dijkstra");
-    auto mainWint = doorDijkstra("main", "winter_inn", doorTransportMap);
+    auto mainWint = doorDijkstra("main", "winter_inn");
     std::ostringstream one;
     std::copy(mainWint.begin(), mainWint.end(), std::ostream_iterator<std::string>(one, ", "));
     mLogger->info("Raw main-winterland dijkstra: {}", one.str());
-
-    auto spurMainWint = getDoorPathsTo("main", "winterland");
-
-    mLogger->info("Spur paths: ");
-    for (auto& path : spurMainWint) {
-        std::ostringstream two;
-        std::copy(path.begin(), path.end(), std::ostream_iterator<std::string>(two, ", "));
-        mLogger->info(two.str());
-    }
 }
 
 std::map<std::pair<int, int>, bool> MapProcessor::getAdjacentPixels(const double& x, const double& y, Map& map) {
@@ -185,32 +176,8 @@ std::vector<std::pair<int, int>> MapProcessor::dijkstra(PlayerSkeleton& player, 
     std::vector<std::tuple<int, int, std::string>> visited;
 }
 
-std::vector<std::vector<std::string>> MapProcessor::getDoorPathsTo(std::string from, std::string to) {
 
-    const std::vector<std::string> shortestPath = doorDijkstra(from, to, doorTransportMap);
-
-    std::vector<std::vector<std::string>> paths;
-    paths.push_back(shortestPath);
-    
-    std::vector<std::string> visited = { shortestPath[1] };
-    for (auto& door : doorTransportMap[from]) {
-        if (door == to) continue;
-        // door = the new from
-        auto fork = doorTransportMap;
-        auto& targetMap = fork[door];
-        targetMap.erase(std::find(targetMap.begin(), targetMap.end(), from), targetMap.end());
-        std::vector<std::string> path = doorDijkstra(door, to, fork);
-        if (std::find(path.begin(), path.end(), from) == path.end() && path.size() > 0) {
-            path.insert(path.begin(), from);
-            paths.push_back(path); 
-        }
-        
-    } 
-    return paths;
-}
-
-std::vector<std::string> MapProcessor::doorDijkstra(std::string from, std::string to,
-                                                    std::map<std::string, std::vector<std::string>>& doorMap) {
+std::vector<std::string> MapProcessor::doorDijkstra(std::string from, std::string to) {
     std::vector<std::string> visited;
     std::vector<std::string> unvisited;
     std::map<std::string, std::pair<int, std::string>> dists;
@@ -220,7 +187,7 @@ std::vector<std::string> MapProcessor::doorDijkstra(std::string from, std::strin
     std::vector<std::string> route = {to};
     // Dijkstra
     while (true) {
-        std::vector<std::string>& nearby = doorMap[currPos];
+        std::vector<std::string>& nearby = doorTransportMap[currPos];
         for (std::string& pos : nearby) {
             if (std::find(visited.begin(), visited.end(), pos) == visited.end() &&
                 std::find(unvisited.begin(), unvisited.end(), pos) == unvisited.end()) {
