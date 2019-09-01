@@ -22,8 +22,9 @@ int PlayerSkeleton::searchGeometry(const nlohmann::json& lines, int minMoveVal) 
 }
 
 bool PlayerSkeleton::canMove(double x, double y, int px, int py, bool trigger) {
-    // TODO implement method
-    auto& geom = character->getClient().getData()["geometry"][character->getMap()]; 
+    auto& geom = character->getClient().getData()
+        ["geometry"]
+        [character->getMap()]; 
     auto& cJson = character->getRawJson();
     double playerX = character->getX();
     double playerY = character->getY();
@@ -168,7 +169,6 @@ bool PlayerSkeleton::smartMove(const nlohmann::json& destination) {
     if (monsters.find(to) != monsters.end()) {
         // map 
         const nlohmann::json& maps = gameData["maps"];
-        bool die = false;
         for (auto& [mapName, mapData] : maps.items()) {
             if (mapData.find("monsters") != mapData.end()) {
                 // List of maps 
@@ -189,21 +189,19 @@ bool PlayerSkeleton::smartMove(const nlohmann::json& destination) {
                         tx = (boundary[1].get<int>() + boundary[3].get<int>()) / 2.0;
                         ty = (boundary[2].get<int>() + boundary[4].get<int>()) / 2.0;
                         cyclableSpawnCounts[to] = (cyclableSpawnCounts[to] + 1) % boundaries.size();
-                        die = true;
-                        break;
+                        goto exit;
                     } else if (pack.find("boundary") != pack.end()) {
                         auto& boundary = pack["boundary"];
                         map = mapName;
                         tx = (boundary[0].get<int>() + boundary[2].get<int>()) / 2.0;
                         ty = (boundary[1].get<int>() + boundary[3].get<int>()) / 2.0;
-                        die = true;
-                        break;
+                        goto exit;
                     }
 
                 }
             }
-            if (die) break;
         }
+exit:;
     } else if(to == "upgrade" || to == "compound"){
         map = "main";
         tx = -204;
@@ -234,6 +232,19 @@ bool PlayerSkeleton::smartMove(const nlohmann::json& destination) {
     }
     if (map == "") {
         mSkeletonLogger->error("Failed to recognize smart_move target: {}", destination.dump());
+        return false;
+    }
+
+    auto& mapData = character->getClient().getData()["maps"][map];
+    // Primitive map access check.
+    // AFAIK, none of the maps have a door in an unaccessible map
+    if (mapData.find("doors") == mapData.end() || mapData["doors"].size() == 0) {
+        mSkeletonLogger->error("Failed to find door to map {}", map);
+        return false;
+    }
+    auto& geom = character->getClient().getData()["geometry"][map];
+    if (tx <= geom["min_x"].get<double>() || tx >= geom["max_x"].get<double>() || ty <= geom["min_y"].get<double>() || ty >= geom["max_y"].get<double>()) {
+        mSkeletonLogger->error("Cannot walk outside the map.");
         return false;
     }
     smart.initSmartMove(map, tx, ty);

@@ -40,6 +40,7 @@ public:
     void withCallback(std::function<void()> callback) {
         this->callback = callback;
     }
+    std::string getMap() { return map; }
 };
 
 class Player;
@@ -150,6 +151,7 @@ public:
     void changeTarget(const nlohmann::json& entity);
     void sendTargetLogic(const nlohmann::json& entity);
 
+    Player& getCharacter() { return *character; }
     const GameData& getGameData();
     SocketWrapper& getSocket();
         

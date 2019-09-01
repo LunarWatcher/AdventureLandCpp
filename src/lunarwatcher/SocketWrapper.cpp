@@ -263,6 +263,7 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
             mLogger->info("Received connection data. Pinging required every {} ms", pingInterval);
         } break;
         case 1:
+            mLogger->info("Disconnected: {}", message->str);
             dispatchEvent("disconnect", {});
             break;
         case 2:
@@ -336,6 +337,10 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
         mLogger->error(message->errorInfo.reason);
     } else if (message->type == ix::WebSocketMessageType::Open) {
         mLogger->info("Connected");
+    } else if (message->type == ix::WebSocketMessageType::Close) {
+        mLogger->info("Socket disconnected: {}", message->closeInfo.reason);
+        if (message->str != "")
+            mLogger->info("Also received a message: {}", message->str);
     }
 }
 
