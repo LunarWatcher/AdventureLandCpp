@@ -103,7 +103,7 @@ if "debug" in env and env["debug"] is False:
         compileFlags += " /O2 "
 else:
     if (clang or gcc):
-        compileFlags += " -g -fstandalone-debug "
+        compileFlags += " -g -fstandalone-debug -O0 "
     else:
         compileFlags += " /DEBUG " 
 env.Append(CXXFLAGS=compileFlags)

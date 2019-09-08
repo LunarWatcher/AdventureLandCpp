@@ -60,7 +60,7 @@ private:
     std::vector<ServerCluster> serverClusters;
 
     std::vector<std::shared_ptr<Player>> bots;
-    MapProcessor mapData;
+    MapProcessor mapProcessor;
 
     std::thread runner;
 
@@ -124,7 +124,7 @@ public:
     std::string& getUserId() { return userId; }
     std::string& getAuthToken() { return userAuth; }
     GameData& getData() { return data; }   
-
+    MapProcessor& getMapProcessor() { return mapProcessor; }
     bool isLocalPlayer(std::string username);
     void dispatchLocalCm(std::string to, const nlohmann::json& message, std::string from);
     /**

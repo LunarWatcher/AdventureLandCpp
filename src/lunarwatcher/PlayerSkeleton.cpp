@@ -7,127 +7,20 @@
 
 namespace advland {
 
-int PlayerSkeleton::searchGeometry(const nlohmann::json& lines, int minMoveVal) {
-    int returnValue = 0;
-    int length = lines.size() - 1;
-    int d;
-    while (returnValue < length - 1) {
-        d = (returnValue + length) / 2.0;
-        if (lines[d][0] < minMoveVal) {
-            returnValue = d;
-        } else
-            length = d - 1;
-    }
-    return returnValue;
-}
-
-bool PlayerSkeleton::canMove(double x, double y, int px, int py, bool trigger) {
-    auto& geom = character->getClient().getData()
-        ["geometry"]
-        [character->getMap()]; 
-    auto& cJson = character->getRawJson();
+bool PlayerSkeleton::canMove(double x, double y) {
+    auto& geom = character->getClient().getData()["geometry"][character->getMap()];
     double playerX = character->getX();
     double playerY = character->getY();
-
-    if (trigger) {
-        playerX += px;
-        playerY += py;
-    }
-    
-    auto minXTarget = std::min(playerX, x);
-    auto maxXTarget = std::max(playerX, x);
-
-    auto minYTarget = std::min(playerY, y);
-    auto maxYTarget = std::max(playerY, y);
-
-    auto& xLines = geom["x_lines"]; 
-    auto& yLines = geom["y_lines"]; 
-
-    if (!trigger) {
-        // Match the hitbox
-        auto base = cJson["base"];
-        std::vector<std::vector<int>> hitbox = {{-int(base["h"]), int(base["vn"])},
-                                                {int(base["h"]), int(base["vn"])},
-                                                {-int(base["h"]), -int(base["v"])},
-                                                {-int(base["h"]), -int(base["v"])}};
-        for (auto& i : hitbox) {
-            int hitboxX = i[0];
-            int hitboxY = i[1];
-            int targetX = x + hitboxX;
-            int targetY = y + hitboxY;
-            if(!canMove(targetX, targetY, hitboxX, hitboxY, true)) {
-                return false;
-            }
-        }
-
-        double pH = double(base["h"]);
-        double nH = -pH;
-
-        double vn = double(base["vn"]);
-        double v = -double(base["v"]);
-
-        if (x > playerX) { 
-            pH = -pH;
-            nH = -nH;
-        }
-        if (y > playerY) {
-            double tmp = vn;
-            vn = -v;
-            v = -tmp;
-        }
-
-        if (!canMove(x + nH, y + v, nH, vn, true)
-                || !canMove(x + pH, y + v, pH, v, true)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    for (unsigned long long i = searchGeometry(xLines, minXTarget); i < xLines.size(); i++) {
-        auto& line = xLines[i];
-        if (line[0] == x && ((line[1] <= y && line[2] >= y) ||
-                             (line[0] == playerX && line[1] >= playerY && y > line[0]))) {
-            return false;
-        }
-
-        if (minXTarget > line[0]) continue;
-        if (maxXTarget < line[0]) break;
-
-        double q = playerY +
-                   (y - playerY) * (double(line[0]) - playerX) / (x - playerX + 1e-8);
-        if (!(double(line[1]) - 1e-8 <= q && q <= double(line[2]) + 1e-8)) {
-            continue;
-        }
-        return false;
-    }
-
-    for (unsigned long long i = searchGeometry(yLines, minYTarget); i < yLines.size(); i++) {
-        auto& line = yLines[i];
-        if (line[0] == y && ((line[1] <= x && line[2] >= x) ||
-                             (line[0] == playerY && playerX <= line[1] && x >= line[1]))) {
-            return false;
-        }
-        if (minYTarget > line[0]) continue;
-        if (maxYTarget < line[0]) break;
-
-        double q = playerX +
-                   (x - playerX) * (double(line[0]) - playerY) / (x - playerY + 1e-8);
-        if (!(double(line[1]) - 1e-8 <= q && q <= double(line[2]) + 1e-8)) continue;
-
-        return false;
-    }
-
-    return true;
+    return character->getClient().getMapProcessor().canMove(playerX, playerY, x, y, geom);
 }
 
 void PlayerSkeleton::move(double x, double y) {
-    if(!canMove(x, y)) return;
+    if (!canMove(x, y)) return;
     /*
      * Note to bot devs: checking if it's possible to move is required. There's no
-     * server-sided position checking, which means raw socket calls can be used to 
-     * move to invalid positions, such as at the top of a mountain. 
-     * Doing so can result in the character ending up in jail (I think - don't 
+     * server-sided position checking, which means raw socket calls can be used to
+     * move to invalid positions, such as at the top of a mountain.
+     * Doing so can result in the character ending up in jail (I think - don't
      * quote me on that).
      */
     character->beginMove(x, y);
@@ -138,12 +31,58 @@ void PlayerSkeleton::move(double x, double y) {
                                          {"m", character->getMapId()}});
 }
 
+void PlayerSkeleton::initSmartMove() {
+    killSwitch = false;
+    if (smart.isSearching()) smart.stop(true);
+    if (smartMoveThread.joinable()) smartMoveThread.join();
+    smartMoveThread = std::thread{[this] { dijkstraProcessor(); }};
+}
+
+void PlayerSkeleton::dijkstraProcessor() {
+    killSwitch = true;
+    mSkeletonLogger->info("Searching...");
+    character->getClient().getMapProcessor().dijkstra(*this, smart);
+    if (!killSwitch) return;
+    if (!smart.hasMore()) {
+        smart.deinit();
+        mSkeletonLogger->info("Path not found :/");
+        return;
+    }
+    nlohmann::json target = nullptr;
+    mSkeletonLogger->info("Path found!");
+    while (killSwitch) {
+        if (target.is_null() || (!getOrElse(target, "transport", false) && character->getX() == target["x"].get<int>() && character->getY() == target["y"])) {
+            if (!smart.hasMore()) break;
+            target = smart.getAndRemoveFirst();
+            if (getOrElse(target, "transport", false) == true) 
+                continue;
+            move(target["x"].get<int>(), target["y"].get<int>());
+        } else if (getOrElse(target, "transport", false) == true || smart.isNextTransport()) {
+            auto& peek = smart.isNextTransport() ? smart.peekNext() : target;
+            if (MovementMath::pythagoras(peek["x"].get<int>(), peek["y"].get<int>(), character->getX(),
+                                         character->getY()) < 75) {
+                transport(peek["map"].get<std::string>(), peek["s"].get<int>());
+                mSkeletonLogger->info(peek.dump());
+                while (peek["map"].get<std::string>() != character->getMap()) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                if (smart.isNextTransport())
+                    smart.ignoreFirst();
+                target = nullptr;
+                continue;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    if (killSwitch) smart.finished();
+}
+
 bool PlayerSkeleton::smartMove(const nlohmann::json& destination) {
     // The map to move to. Populated if one is specified.
     // Otherwise, the map defaults to the current map for x/y moves.
     std::string map;
     std::string to;
-    
+
     double tx, ty;
 
     if (destination.is_string()) {
@@ -157,33 +96,33 @@ bool PlayerSkeleton::smartMove(const nlohmann::json& destination) {
         }
         if (destination.find("map") != destination.end())
             map = destination["map"].get<std::string>();
-
+        else
+            map = character->getMap();
     }
     if (to == "town") to = "main";
-   
+
     // Structure helper:
     // Map
     auto& gameData = this->getGameData();
     // Map
     auto& monsters = gameData["monsters"];
     if (monsters.find(to) != monsters.end()) {
-        // map 
+        // map
         const nlohmann::json& maps = gameData["maps"];
         for (auto& [mapName, mapData] : maps.items()) {
             if (mapData.find("monsters") != mapData.end()) {
-                // List of maps 
+                // List of maps
                 auto& mapMonsters = mapData["monsters"];
                 for (auto& pack : mapMonsters) {
-                    if (pack["type"] != to
-                            || mapData["ignore"] == true 
-                            || mapData["instance"] == true) continue;
-                     
-                    // Some mobs, like phoenix and mvampire, use boundaries instead of bounday. 
-                    if (pack.find("boundaries") != pack.end()) { 
-                        // List of maps 
-                        auto& boundaries = pack["boundaries"];   
-                        if (cyclableSpawnCounts.find(to) == cyclableSpawnCounts.end()) 
-                            cyclableSpawnCounts[to] = 0;
+                    if (pack["type"] != to || getOrElse(mapData, "ignore", false) == true ||
+                        getOrElse(mapData, "instance", false) == true)
+                        continue;
+
+                    // Some mobs, like phoenix and mvampire, use boundaries instead of bounday.
+                    if (pack.find("boundaries") != pack.end()) {
+                        // List of maps
+                        auto& boundaries = pack["boundaries"];
+                        if (cyclableSpawnCounts.find(to) == cyclableSpawnCounts.end()) cyclableSpawnCounts[to] = 0;
                         auto& boundary = boundaries[cyclableSpawnCounts[to]];
                         map = boundary[0].get<std::string>();
                         tx = (boundary[1].get<int>() + boundary[3].get<int>()) / 2.0;
@@ -197,12 +136,11 @@ bool PlayerSkeleton::smartMove(const nlohmann::json& destination) {
                         ty = (boundary[1].get<int>() + boundary[3].get<int>()) / 2.0;
                         goto exit;
                     }
-
                 }
             }
         }
-exit:;
-    } else if(to == "upgrade" || to == "compound"){
+    exit:;
+    } else if (to == "upgrade" || to == "compound") {
         map = "main";
         tx = -204;
         ty = -129;
@@ -210,13 +148,13 @@ exit:;
         map = "main";
         tx = -26;
         ty = -432;
-    } else if(to == "potions") {
+    } else if (to == "potions") {
         std::string pMap = character->getMap();
         if (pMap == "halloween") {
             map = "halloween";
             tx = 149;
             ty = -182;
-        } else if(pMap == "winterland" || pMap == "winter_inn" || pMap == "winter_cave") {
+        } else if (pMap == "winterland" || pMap == "winter_inn" || pMap == "winter_cave") {
             map = "winter_inn";
             tx = -84;
             ty = -173;
@@ -243,11 +181,13 @@ exit:;
         return false;
     }
     auto& geom = character->getClient().getData()["geometry"][map];
-    if (tx <= geom["min_x"].get<double>() || tx >= geom["max_x"].get<double>() || ty <= geom["min_y"].get<double>() || ty >= geom["max_y"].get<double>()) {
+    if (tx <= geom["min_x"].get<double>() || tx >= geom["max_x"].get<double>() || ty <= geom["min_y"].get<double>() ||
+        ty >= geom["max_y"].get<double>()) {
         mSkeletonLogger->error("Cannot walk outside the map.");
         return false;
     }
     smart.initSmartMove(map, tx, ty);
+    initSmartMove();
     return true;
 }
 
@@ -285,7 +225,7 @@ void PlayerSkeleton::use(const std::string& item) {
             auto& gives = iItemData["gives"];
             for (auto& effect : gives) {
                 if (effect[0] == item) {
-                    character->getSocket().emit("equip", {{"num", i}}); 
+                    character->getSocket().emit("equip", {{"num", i}});
                     return;
                 }
             }
@@ -294,31 +234,27 @@ void PlayerSkeleton::use(const std::string& item) {
     character->getSocket().emit("use", {{"item", item}});
 }
 
-
 void PlayerSkeleton::equip(int inventoryIdx, std::string itemSlot) {
     character->getSocket().emit("equip", {{"num", inventoryIdx}, {"slot", itemSlot}});
 }
 
 void PlayerSkeleton::loot(bool safe) {
     int looted = 0;
-    
+
     std::lock_guard<std::mutex> guard(getSocket().getChestGuard());
-    if (lootTimer.check() < 300) 
-        return;
- 
-    if (character->getSocket().getChests().size() == 0)
-        return;
-    for (auto& [id, chest] : character->getSocket().getChests()) { 
-        if (safe && chest["items"].get<int>() != 0 && chest["items"].get<int>() > character->countOpenInventory()) continue;  
-        
+    if (lootTimer.check() < 300) return;
+
+    if (character->getSocket().getChests().size() == 0) return;
+    for (auto& [id, chest] : character->getSocket().getChests()) {
+        if (safe && chest["items"].get<int>() != 0 && chest["items"].get<int>() > character->countOpenInventory())
+            continue;
+
         character->getSocket().emit("open_chest", {{"id", id}});
 
         looted++;
-        if (looted == 2)
-            break;   
+        if (looted == 2) break;
     }
-    if (looted > 1) 
-        lootTimer.reset();
+    if (looted > 1) lootTimer.reset();
 }
 
 void PlayerSkeleton::sendGold(std::string to, unsigned long long amount) {
@@ -386,16 +322,17 @@ void PlayerSkeleton::sendCm(const nlohmann::json& to, const nlohmann::json& mess
     }
     if (to.is_string() && character->getClient().isLocalPlayer(std::string(to))) {
         character->getClient().dispatchLocalCm(to, message, character->getName());
-    } else if (to.is_array() && to.size() == 1 && character->getClient().isLocalPlayer(std::string(to[0]))) { 
+    } else if (to.is_array() && to.size() == 1 && character->getClient().isLocalPlayer(std::string(to[0]))) {
         std::string charName = std::string(to[0]);
         if (character->getClient().isLocalPlayer(charName))
             character->getClient().dispatchLocalCm(charName, message, character->getName());
-    }else {
+    } else {
         if (to.is_string())
             getSocket().emit("cm", {{"to", nlohmann::json::array({to.get<std::string>()})}, {"message", message}});
         else {
             if (!to.is_array()) {
-                mSkeletonLogger->error("Attempted to call sendCm with the \"to\" parameter that isn't a string or an object. Ignoring.");
+                mSkeletonLogger->error(
+                    "Attempted to call sendCm with the \"to\" parameter that isn't a string or an object. Ignoring.");
                 return;
             }
 
@@ -404,11 +341,11 @@ void PlayerSkeleton::sendCm(const nlohmann::json& to, const nlohmann::json& mess
                     if (character->getClient().isLocalPlayer(username)) {
                         character->getClient().dispatchLocalCm(username, message, character->getName());
                     } else {
-                        getSocket().emit("cm", {{"to", nlohmann::json::array({username.get<std::string>()})}, {"message", message}});
+                        getSocket().emit(
+                            "cm", {{"to", nlohmann::json::array({username.get<std::string>()})}, {"message", message}});
                     }
                 }
             }
-
         }
     }
 }
@@ -418,45 +355,49 @@ void PlayerSkeleton::attack(nlohmann::json& entity) {
     attackTimer.reset();
     if (entity.is_object())
         character->getSocket().emit("attack", {{"id", entity["id"].get<std::string>()}});
-    else 
+    else
         character->getSocket().emit("attack", {{"id", entity.get<std::string>()}});
 }
 
 void PlayerSkeleton::heal(nlohmann::json& entity) {
-   if (!canAttack(entity)) return;
+    if (!canAttack(entity)) return;
     attackTimer.reset();
-    if (entity.is_object()) 
+    if (entity.is_object())
         character->getSocket().emit("heal", {{"id", entity["id"].get<std::string>()}});
-    else 
+    else
         character->getSocket().emit("heal", {{"id", entity.get<std::string>()}});
 }
 
-void PlayerSkeleton::sendPartyInvite(std::string name, bool isRequest) {
-    character->getSocket().emit("party", {
-            {"event", isRequest ? "request" : "invite"},
-            {"name", name}
-        });
+void PlayerSkeleton::sendPartyInvite(std::string& name, bool isRequest) {
+    character->getSocket().emit("party", {{"event", isRequest ? "request" : "invite"}, {"name", name}});
 }
 
-void PlayerSkeleton::sendPartyRequest(std::string name) {
-    sendPartyInvite(name, true);
-}
+void PlayerSkeleton::sendPartyRequest(std::string& name) { sendPartyInvite(name, true); }
 
-void PlayerSkeleton::acceptPartyInvite(std::string name) {
+void PlayerSkeleton::acceptPartyInvite(std::string& name) {
     character->getSocket().emit("party", {{"event", "accept"}, {"name", name}});
 }
 
-void PlayerSkeleton::acceptPartyRequest(std::string name) {
+void PlayerSkeleton::acceptPartyRequest(std::string& name) {
     character->getSocket().emit("party", {{"event", "raccept"}, {"name", name}});
 }
 
-void PlayerSkeleton::leaveParty() {
-    character->getSocket().emit("party", {{"event", "leave"}});
+void PlayerSkeleton::transport(const std::string& targetMap, int spawn) {
+    if (targetMap == character->getMap()) {
+        mSkeletonLogger->warn("Attempt to transport to the map you're currently in ignored.");
+        return;
+    }
+    
+    getSocket().emit(
+        "transport",
+        {{"to", targetMap},
+         {"s", spawn == -1 ? character->getClient().getData()["npcs"]["transporter"]["places"]["targetMap"].get<int>()
+                           : spawn}});
 }
 
-void PlayerSkeleton::respawn() {
-    character->getSocket().emit("respawn");
-}
+void PlayerSkeleton::leaveParty() { character->getSocket().emit("party", {{"event", "leave"}}); }
+
+void PlayerSkeleton::respawn() { character->getSocket().emit("respawn"); }
 
 nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) {
     double closest = 999990;
@@ -473,6 +414,7 @@ nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) 
             (attribs.find("min_xp") != attribs.end() && entity.value("xp", 0) < int(attribs["min_xp"])) ||
             (attribs.find("max_att") != attribs.end() && entity.value("attack", 0) > int(attribs["attack"])))
             continue;
+        if (entity.value("dead", false) == true || entity.value("rip", false) == true) continue;
 
         double dist =
             MovementMath::pythagoras(character->getX(), character->getY(), double(entity["x"]), double(entity["y"]));
@@ -521,9 +463,7 @@ void PlayerSkeleton::sendTargetLogic(const nlohmann::json& target) {
     }
 }
 
-const GameData& PlayerSkeleton::getGameData() {
-    return character->getClient().getData();
-}
+const GameData& PlayerSkeleton::getGameData() { return character->getClient().getData(); }
 SocketWrapper& PlayerSkeleton::getSocket() { return character->wrapper; }
 
 } // namespace advland

@@ -5,7 +5,6 @@
 #define USE_STATIC_ENTITIES false
 #endif
 
-#include "lunarwatcher/utils/SocketIOParser.hpp"
 #include <functional>
 #include <ixwebsocket/IXWebSocket.h>
 #include <map>
@@ -119,6 +118,7 @@ public:
         std::map<std::string, nlohmann::json>&
         getEntities();
     std::map<std::string, nlohmann::json>& getChests();
+    bool isOpen() { return webSocket.getReadyState() == ix::ReadyState::Open; }
     ix::ReadyState getReadyState() { return webSocket.getReadyState(); }
     std::mutex& getChestGuard() {
         return chestGuard;

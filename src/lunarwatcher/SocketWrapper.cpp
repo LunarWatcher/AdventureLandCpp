@@ -158,6 +158,13 @@ void SocketWrapper::initializeSystem() {
             }
         }
     });
+    this->registerEventCallback("new_map", [this](const nlohmann::json& event) {
+        player.updateJson({{"map", event["name"].get<std::string>()},
+                {"x", event["x"].get<int>()},
+                {"y", event["y"].get<int>()},
+                {"m", event["m"].get<int>()},
+                {"moving", false}});
+    });
     this->registerEventCallback("cm", [this](const nlohmann::json& event) {
         player.getSkeleton().onCm(event["name"].get<std::string>(), event["message"]); 
     });
@@ -318,6 +325,8 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
                 mLogger->warn("Received an event of type {}. Please report this issue here: "
                               "https://github.com/LunarWatcher/AdventureLandCpp/issues/1 - Full websocket message: {}",
                               type, messageStr);
+            } else {
+                mLogger->warn("Unknown event received: {}", messageStr);
             }
 
         } break;

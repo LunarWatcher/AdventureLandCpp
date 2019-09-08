@@ -41,7 +41,7 @@ void AdvLandClient::construct(const nlohmann::json& email, const nlohmann::json&
     validateSession();
     collectServers();
 
-    mapData.processMaps(data);
+    mapProcessor.processMaps(data);
 }
 
 AdvLandClient::~AdvLandClient() { ix::uninitNetSystem(); }
@@ -308,6 +308,7 @@ void AdvLandClient::processInternals() {
                 if (!playerPtr->hasStarted()) {
                     continue;
                 }
+                playerPtr->getSkeleton().getSmartHelper().manageFutures();
                 playerPtr->getSocket().deleteEntities();
                 if (playerPtr->isAlive() && playerPtr->isMoving()) {
                     nlohmann::json& entity = playerPtr->getRawJson();
