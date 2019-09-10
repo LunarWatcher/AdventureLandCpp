@@ -59,6 +59,22 @@ You don't need anything here aside verification. The HTML doesn't provide you wi
 
 There's one final step before you can move on: you need to get the session cookie. This is represented by a string value, and there's several ways to get it. One is using the `set-cookie` header with some regex, another is letting your library parse the cookies for you, and get the auth cookie (meaning a cookie with the key/name `auth`). 
 
+Now, if you split this by `-`, the first value will be your user ID. The full cookie value is your session cookie, which you'll need mostly for HTTP requests.
+
+Unfortunately, AL makes this... complicated. To connect, you also need a user auth token, which is hidden somewhere in the HTML of the index page when you're logged in. You **need** this token to continue with websocket connection.
+
+Basically, `GET` the front page, and add the auth cookie with the session cookie (which you got from the auth cookie) to the request. This also lets you validate your session, but getting the user_auth key is critical to continue. 
+
+When you've sent the request, you need to parse the HTML, [and what better way to do that than with regex](https://stackoverflow.com/a/1732454/6296561)?
+
+Run this regex on the HTML:
+
+```regex
+user_auth=\"([a-zA-Z0-9]+)\"
+```
+
+The quotes are escaped here, but this is made for the variant of regex supported by C++ (and potentially other similar languages), but you might need to modify it for other languages. If your language has raw strings, you probably don't need to escape it at all.
+
 ## Getting game data
 
 Parsing the game data can be done in several ways, but I'll be using string replacement and JSON parsing. 
@@ -161,22 +177,71 @@ TODO
 
 ## Connecting with websockets
 
-You'll need to connect to `wss://address:port/socket.io/?EIO=3&transport=websocket`, where address:port is somethign you should've retrieved earlier. 
+You'll need to connect to `wss://address:port/socket.io/?EIO=3&transport=websocket`, where address:port is something you should've retrieved earlier. 
 
-Parsing the websocket responses is an entire topic on its own, which is why I'll create a separate file on that topic eventually. You'll also need to create your own version of socket.emit to proceed.
+Parsing the websocket responses is an entire topic on its own, because Socket.IO is a protocol as well. It sends messages in a format that the socket.IO client usually parses. When you're using websockets, you get, and need to parse, the raw data. See also ParsingSocketIO.md for more info on a minimal way of parsing.
 
 ## When you've connected
 
 This is where it gets easy again. When you've connected and linked your code properly, you'll need to wait for the welcome event. When you get this, you emit a "loaded" event in return. I just hard-coded some values:
 
 ```
-socket.emit("loaded", {"success": 1, "width": 1920, "height": 1080, scale: 2});
+socket.emit("loaded", {"success": 1, "width": 1920, "height": 1080, "scale": 2});
 ```
 
 (the game uses scale = 2 by default. Using other values probably won't affect gameplay). 
 
 After this, you need to listen for the entity event. It's at this point you can log in your actual character. You'll need the auth token from earlier, along with the player ID and some other values. 
 
-TODO
+Basically, the connection and initialization is a flow of events:
 
+```yaml
+Server: welcome
+Client: loaded
+Server: entities 
+Client: auth
+Server: start
+```
+
+This assumes every step succeeds of course. Unfortunately, error responses aren't that useful, mainly because there's minimal of them.
+
+Anyway, after the loaded event, you should get an entities event. This is a very active event, but you're looking for the first event (can be checked with a bool switch - just remember to toggle it if you disconnect) where the type is all (`data["type"] == "all"`). To this, you respond with an auth event:
+
+```cpp
+emit("auth", {
+    "user": userId, // the first part of the auth cookie.
+    "character": characterId, // the character of the ID to connect. DO NOT confuse this with the userId.
+    "auth": authToken, // This is the auth token 
+    "width": 1920,
+    "height": 1080,
+    "scale": 2, 
+    "no_html": true,
+    "no_graphics": true
+    
+});
+```
+
+If everything is correct, you'll now receive the start event. This contains JSON data, which contains data for the character you need to get started. 
+
+## Congratulations - you've successfully connected!
+
+At this point, the next step is to get started with the API. Unfortunately, this is where reverse-engineering starts. I can't cover every single method in a language-neutral way without losing any important info. That being said, these methods are, in my experience, the worst to implement:
+
+* `canMove()`
+* `smartMove()`
+* Processing of movement 
+
+## The next steps 
+
+Aside the code, take a look at EventDex.md and Pitfalls.md. EventDex.md contains a list of the events, as well as a mini crash-course on how to use it. There's also several central events necessary for basic function (which I had to learn the hard way). Pitfalls.md contains various problems that aren't easy to detect, but that're very real. 
+
+## Problems? Open an issue! 
+
+If you have a general problem with connecting or getting started, feel free to open an issue. For more complex, implementation-specific problems (such as problems implementing a specific method, etc), issues aren't the best platform. Therefore, using Discord (either the [official AL server](https://discord.gg/gMHpqZM) or [my personal server (not centered around Adventure.Land)](https://discord.gg/bjZD42j)) is the better option.<sub>At least for now - this might change later.</sub>
+
+Because programming languages vary, I can't guarantee I'll be able to help with these types of issues, but I'll try. 
+
+**Note:** These docs are written while I work on the library, and may contain errors. Because the game is in alpha and rapidly evolves, these docs may also become outdated without me knowing or noticing. 
+
+That being said, if you find something wrong in the docs, and you know what's wrong, feel free to open a pull request fixing the problem, and I'll review it. 
 

@@ -5,12 +5,12 @@
    - [X] Authentication
    - [ ] Disconnection safety
 ** Player [0%]
-   - [-] API functions [5/7]
+   - [-] API functions [6/7]
      - [X] Move
      - [X] canMove
      - [X] Attack
      - [X] looting 
-     - [ ] Smart move
+     - [X] Smart move
      - [X] on_cm and send_cm
      - [-] Other non-primary functions [1/2]
        - [X] Party
