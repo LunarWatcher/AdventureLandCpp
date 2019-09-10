@@ -52,15 +52,15 @@ private:
     };
 
 public:
-    static int convertPosToMapIndex(const double& x, const double& y, const double& minX, const double& minY,
+    static unsigned long long convertPosToMapIndex(const double& x, const double& y, const double& minX, const double& minY,
                                     const double& xSize);
     static bool isTransportDestination(std::string target, GameData& data);
 
     void processMaps(const GameData& data);
-    bool canMove(double x1, double y1, double x2, double y2, const nlohmann::json& geom, int px = 0, int py = 0, bool trigger = false);
+    bool canMove(const double& x1, const double& y1, const double& x2, const double& y2, const nlohmann::json& geom, bool trigger = false);
     
     std::optional<Door> getDoorTo(std::string currMap, std::string destination, GameData& data);
-    void dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std::string currMap = "");
+    bool dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std::string currMap = "");
 };
 
 } // namespace advland

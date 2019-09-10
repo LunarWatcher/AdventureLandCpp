@@ -11,6 +11,18 @@
 
 namespace advland {
 
+namespace defs {
+
+    const double EPS = 1e-8;
+
+    const std::map<std::string, int> base = {{"h", 8}, {"v", 7}, {"vn", 2}};
+    const std::vector<std::vector<int>> hitbox = {{-base.at("h"), base.at("vn")},
+                                                  {base.at("h"), base.at("vn")},
+                                                  {-base.at("h"), -base.at("v")},
+                                                  {base.at("h"), -base.at("v")}};
+
+} // namespace defs
+
 void MapProcessor::box(double x1, double y1, double x2, double y2, std::vector<bool>& map, int xSize) {
     for (double x = x1; x < x2; x++)
         for (double y = y1; y < y2; y++)
@@ -20,66 +32,55 @@ void MapProcessor::box(double x1, double y1, double x2, double y2, std::vector<b
 }
 
 int MapProcessor::bSearch(const nlohmann::json& lines, int search) {
-    int low = 0, high = lines.size() - 1;
-    while (low + 1 != high) {
-        int m = std::floor((low + high) / 2);
-        if (lines[m][0] >= search) {
+    int high = 0, low = lines.size() - 1;
+    while (high < low - 1) {
+        int m = (low + high) / 2.0;
+        if (lines[m][0] < search) {
             high = m;
         } else
-            low = m;
+            low = m - 1;
     }
     return high;
 }
 
-bool MapProcessor::canMove(double x1, double y1, double x2, double y2, const nlohmann::json& geom, int px, int py,
-                           bool trigger) {
-    static std::map<std::string, int> base = {{"h", 8}, {"v", 7}, {"vn", 2}};
-    static std::vector<std::vector<int>> hitbox = {{-int(base["h"]), int(base["vn"])},
-                                                   {int(base["h"]), int(base["vn"])},
-                                                   {-int(base["h"]), -int(base["v"])},
-                                                   {-int(base["h"]), -int(base["v"])}};
+bool MapProcessor::canMove(const double& x1, const double& y1, const double& x2, const double& y2,
+                           const nlohmann::json& geom, bool trigger) {
 
-    if (trigger) {
-        x1 += px;
-        y1 += py;
-    }
-    double x = std::min(x1, x2);
-    double y = std::min(y1, y2);
-    double X = std::max(x1, x2);
-    double Y = std::max(y1, y2);
+    auto x = std::min(x1, x2);
+    auto y = std::min(y1, y2);
+    auto X = std::max(x1, x2);
+    auto Y = std::max(y1, y2);
 
-    auto& xLines = geom["x_lines"];
-    auto& yLines = geom["y_lines"];
+    const auto& xLines = geom["x_lines"];
+    const auto& yLines = geom["y_lines"];
 
     if (!trigger) {
-        for (auto& i : hitbox) {
+        for (const auto& i : defs::hitbox) {
             int hitboxX = i[0];
             int hitboxY = i[1];
-            int targetX = x2 + hitboxX;
-            int targetY = y2 + hitboxY;
-            if (!canMove(x1, y1, targetX, targetY, geom, hitboxX, hitboxY, true)) {
+            if (!canMove(x1 + hitboxX / 2.0, y1 + hitboxY / 2.0, x2 + hitboxX / 2.0, y2 + hitboxY / 2.0, geom, true)) {
                 return false;
             }
         }
 
-        double pH = double(base["h"]);
-        double nH = -pH;
+        int pH = int(defs::base.at("h"));
+        int nH = -pH;
 
-        double vn = double(base["vn"]);
-        double v = -double(base["v"]);
+        int vn = int(defs::base.at("vn"));
+        int v = -int(defs::base.at("v"));
 
         if (x2 > x1) {
             pH = -pH;
             nH = -nH;
         }
         if (y2 > y1) {
-            double tmp = vn;
-            vn = -v;
+            int tmp = vn;
+            vn = v;
             v = -tmp;
         }
 
-        if (!canMove(x1, y1, x2 + nH, y2 + v, geom, nH, vn, true) ||
-            !canMove(x1, y1, x2 + pH, y2 + v, geom, pH, v, true)) {
+        if (!canMove(x1 + nH, y1 + vn, x2 + nH, y2 + v, geom, true) ||
+            !canMove(x1 + pH, y1 + v, x2 + nH, y2 + v, geom, true)) {
             return false;
         }
 
@@ -88,30 +89,38 @@ bool MapProcessor::canMove(double x1, double y1, double x2, double y2, const nlo
 
     for (unsigned long long i = bSearch(xLines, x); i < xLines.size(); i++) {
         auto& line = xLines[i];
-        if (line[0] == x2 && ((line[1] <= y2 && line[2] >= y2) || (line[0] == x1 && line[1] >= y1 && y2 > line[0]))) {
+        if (line[0].get<int>() == x2 &&
+            ((line[1].get<int>() <= y2 && line[2].get<int>() >= y2) ||
+             (line[0].get<int>() == x1 && y1 <= line[1].get<int>() && y2 > line[1].get<int>()))) {
             return false;
         }
 
-        if (x > line[0]) continue;
-        if (X < line[0]) break;
+        if (x > line[0].get<int>()) continue;
+        if (X < line[0].get<int>()) break;
 
-        double q = y1 + (y2 - y1) * (double(line[0]) - x1) / (x2 - x1 + 1e-8);
-        if (!(double(line[1]) - 1e-8 <= q && q <= double(line[2]) + 1e-8)) {
+        double under = x2 - x1 + defs::EPS;
+        double q = y1 + (y2 - y1) * (double(line[0]) - x1) / (under);
+        if (!(double(line[1]) - defs::EPS <= q && q <= double(line[2]) + defs::EPS)) {
             continue;
         }
         return false;
     }
 
-    for (unsigned long long i = bSearch(yLines, Y); i < yLines.size(); i++) {
+    for (unsigned long long i = bSearch(yLines, y); i < yLines.size(); i++) {
         auto& line = yLines[i];
-        if (line[0] == y2 && ((line[1] <= x2 && line[2] >= x2) || (line[0] == y1 && x1 <= line[1] && x2 >= line[1]))) {
+        if (line[0].get<int>() == y2 &&
+            ((line[1].get<int>() <= x2 && line[2].get<int>() >= x2) ||
+             (line[0].get<int>() == y1 && x1 <= line[1].get<int>() && x2 >= line[1].get<int>()))) {
             return false;
         }
-        if (y > line[0]) continue;
-        if (Y < line[0]) break;
+        if (y > line[0].get<int>()) continue;
+        if (Y < line[0].get<int>()) break;
 
-        double q = x1 + (x2 - x1) * (double(line[0]) - y1) / (y2 - y1 + 1e-8);
-        if (!(double(line[1]) - 1e-8 <= q && q <= double(line[2]) + 1e-8)) continue;
+        double under = y2 - y1 + defs::EPS;
+        double q = x1 + (x2 - x1) * (double(line[0]) - y1) / (under);
+        if (!(double(line[1]) - defs::EPS <= q && q <= double(line[2]) + defs::EPS)) {
+            continue;
+        }
 
         return false;
     }
@@ -124,8 +133,8 @@ std::pair<double, double> MapProcessor::toGameMapCoords(const double& x, const d
     return std::make_pair(x /* * boxSize */ + minX, y + minY);
 }
 
-int MapProcessor::convertPosToMapIndex(const double& x, const double& y, const double& minX, const double& minY,
-                                       const double& xSize) {
+unsigned long long MapProcessor::convertPosToMapIndex(const double& x, const double& y, const double& minX,
+                                                      const double& minY, const double& xSize) {
     return xSize * (y - minY) + (x - minX);
 }
 
@@ -244,8 +253,10 @@ std::vector<std::pair<int, int>> MapProcessor::getAdjacentPixels(const double& x
     for (auto& move : moves) {
         int mx = x + move[0];
         int my = y + move[1];
+        if (mx < map.getMinX() || mx > map.getMaxX() || my < map.getMinY() || my > map.getMaxY()) continue;
 
-        int idx = convertPosToMapIndex(mx, my, map.getMinX(), map.getMinY(), map.getXSize());
+        unsigned long long idx = convertPosToMapIndex(mx, my, map.getMinX(), map.getMinY(), map.getXSize());
+
         if (!map.getRawMapData()[idx]) {
             pos.push_back(std::pair<int, int>(mx, my));
         }
@@ -307,15 +318,14 @@ std::vector<std::pair<int, int>> MapProcessor::prunePath(std::vector<std::pair<i
     return path;
 }
 
-void MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std::string currMap) {
-    if (!smart.canRun()) return;
-
+bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std::string currMap) {
+    if (!smart.canRun()) return false;
     auto& character = player.getCharacter();
     if (smart.getTargetMap() == character.getMap() &&
         canMove(character.getX(), character.getY(), smart.getTargetX(), smart.getTargetY(),
                 character.getClient().getData()["geometry"][smart.getTargetMap()])) {
         smart.pushNodes({std::make_pair(character.getX(), character.getY())});
-        return;
+        return true;
     }
     std::vector<std::tuple<int, int, std::string>> targets;
     if (currMap == "") currMap = character.getMap();
@@ -326,14 +336,14 @@ void MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
 
         auto landingCoords = smart.getLandingCoords();
 
-        std::optional<Door> door;
-        std::optional<std::string> targetMap;
-        std::optional<std::pair<int, int>> landingPosition;
-
         if (landingCoords.has_value()) {
             rCurrPos = std::make_pair(landingCoords->first, landingCoords->second);
         } else if (character.getMap() == currMap)
             rCurrPos = std::make_pair(character.getX(), character.getY());
+
+        std::optional<Door> door = std::nullopt;
+        std::optional<std::string> targetMap = std::nullopt;
+        std::optional<std::pair<int, int>> landingPosition = std::nullopt;
 
         if (currMap == smart.getTargetMap()) {
             x = smart.getTargetX();
@@ -353,47 +363,42 @@ void MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
             x = door->getX();
             y = door->getY();
         }
+
         auto targetPos = std::pair<int, int>(x, y);
         auto currPos = std::pair<int, int>(rCurrPos);
         std::unordered_map<std::pair<int, int>, bool, PairHash> visited;
         std::vector<std::pair<int, int>> unvisited;
 
         auto& mapObj = maps[currMap];
-        auto& geom = player.getCharacter().getClient().getData()["geometry"][currMap];
+        const auto& geom = player.getCharacter().getClient().getData()["geometry"][currMap];
 
         // < <x, y>, <dist,
         std::unordered_map<std::pair<int, int>, PathDist, PairHash> dists;
 
         dists[currPos] = PathDist{0};
-        Timer timer;
-
         while (smart.canRun()) {
 
             auto adjacentTiles = getAdjacentPixels(currPos.first, currPos.second, mapObj);
-            std::vector<std::pair<int, int>> neighbors;
-
-            for (auto& pos : adjacentTiles) {
-                if (visited.find(pos) == visited.end() &&
-                    std::find(unvisited.begin(), unvisited.end(), pos) == unvisited.end() &&
-                    canMove(pos.first, pos.second, currPos.first, currPos.second, geom)) {
-                    neighbors.push_back(pos);
-                    unvisited.push_back(pos);
-                }
-            }
-
             PathDist& d = dists[currPos];
 
-            for (auto& p : neighbors) {
-                // Pythagoras to determine the distance
-                double dist =
-                    d.dist + std::sqrt(std::pow(currPos.first - p.first, 2) + std::pow(currPos.second - p.second, 2));
-                if (dists.find(p) == dists.end() || dist < dists[p].dist) dists[p] = PathDist{dist, currPos};
+            for (auto& adjacent : adjacentTiles) {
+                if (visited.find(adjacent) == visited.end() &&
+                    std::find(unvisited.begin(), unvisited.end(), adjacent) == unvisited.end() &&
+                    canMove(double(currPos.first), double(currPos.second), double(adjacent.first),
+                            double(adjacent.second), geom)) {
+                    unvisited.push_back(adjacent);
+                    double dist = d.dist + std::sqrt(std::pow(currPos.first - adjacent.first, 2) +
+                                                     std::pow(currPos.second - adjacent.second, 2));
+                    if (dists.find(adjacent) == dists.end() || dist < dists[adjacent].dist)
+                        dists[adjacent] = PathDist{dist, currPos};
+                }
             }
 
             if (visited.size() > 0) unvisited.erase(unvisited.begin());
             visited[currPos] = true;
             // *currPos == *targetpos
-            if (MovementMath::pythagoras(currPos.first, currPos.second, targetPos.first, targetPos.second) <= 20) {
+            if (MovementMath::pythagoras(currPos.first, currPos.second, targetPos.first, targetPos.second) <=
+                (door.has_value() && door->isTransporter() ? 60 : 20)) {
                 std::vector<std::pair<int, int>> path;
                 auto& dist = dists[currPos];
                 while (dist.lastPosition.has_value()) {
@@ -419,11 +424,11 @@ void MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
                 if (character.getMap() == smart.getTargetMap()) {
                     smart.ready();
                 }
-                return;
+                return true;
             }
             if (unvisited.size() == 0) {
                 mLogger->warn("Failed to find a path.");
-                return;
+                return false;
             }
             currPos = (*unvisited.begin());
         }
@@ -433,19 +438,23 @@ void MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
         if (path.size() == 0) {
             mLogger->warn("Failed to find a door path from {} to {}", currMap, smart.getTargetMap());
             smart.deinit();
-            return;
+            return false;
         }
         smart.injectDoorPath(path);
         for (auto& mapToProcess : path)
-            dijkstra(player, smart, mapToProcess);
+            if (!dijkstra(player, smart, mapToProcess)) {
+                if (smart.canRun()) smart.deinit();
+                return false;
+            }
         smart.ready();
     }
+    return true;
 }
 
 std::vector<std::string> MapProcessor::doorDijkstra(std::string from, std::string to) {
     std::vector<std::string> visited;
     std::vector<std::string> unvisited;
-    std::map<std::string, std::pair<int, std::string>> dists;
+    std::unordered_map<std::string, std::pair<int, std::string>> dists;
 
     std::string& currPos = from;
     dists[from] = std::make_pair(0, "");
@@ -457,11 +466,10 @@ std::vector<std::string> MapProcessor::doorDijkstra(std::string from, std::strin
             if (std::find(visited.begin(), visited.end(), pos) == visited.end() &&
                 std::find(unvisited.begin(), unvisited.end(), pos) == unvisited.end()) {
                 unvisited.push_back(pos);
+                int dist = dists[currPos].first + 1;
+                if (dists.find(pos) == dists.end() || dist < dists[pos].first)
+                    dists[pos] = std::make_pair(dist, currPos);
             }
-        }
-        for (std::string& u : unvisited) {
-            int dist = dists[currPos].first + 1;
-            if (dists.find(u) == dists.end() || dist < dists[u].first) dists[u] = std::make_pair(dist, currPos);
         }
 
         auto unv = std::find(unvisited.begin(), unvisited.end(), currPos);
