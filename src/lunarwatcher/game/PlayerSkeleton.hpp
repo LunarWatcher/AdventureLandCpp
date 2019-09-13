@@ -81,9 +81,9 @@ public:
     bool smartMove(const nlohmann::json& destination);
     bool smartMove(const nlohmann::json& destination, std::function<void()> callback);
 
-    void say(std::string message);
-    // TODO partySay (message: msg, party: true)
-    // TODO pmSay (message: msg, name: user)
+    void say(const std::string& message);
+    void partySay(const std::string& message);
+    void sendPm(const std::string& message, const std::string& user);
 
     void sendPartyInvite(std::string& name, bool isRequest = false);
     void sendPartyRequest(std::string& name);

@@ -84,6 +84,7 @@ public:
     PROXY_GETTER(CType, std::string)
     PROXY_GETTER(Speed, int)   
     PROXY_GETTER(Gold, long long)
+  
     const std::string& getName() { return name; }
     const nlohmann::json& getInventory() {
         return data["items"];

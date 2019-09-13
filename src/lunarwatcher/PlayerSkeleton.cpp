@@ -220,6 +220,8 @@ void PlayerSkeleton::use(const std::string& item) {
     for (unsigned long long i = 0; i < character->getInventory().size(); i++) {
         const nlohmann::json& iItem = character->getInventory()[i];
         if (iItem.is_null()) continue;
+        if (iItem.find("name") == iItem.end() || !iItem["name"].is_string())
+            continue;
         auto& iItemData = itemData[iItem["name"].get<std::string>()];
         if (iItemData.find("gives") != iItemData.end()) {
             auto& gives = iItemData["gives"];
@@ -313,7 +315,9 @@ bool PlayerSkeleton::inAttackRange(nlohmann::json& entity) {
     return true;
 }
 
-void PlayerSkeleton::say(std::string message) { character->getSocket().emit("say", {{"message", message}}); }
+void PlayerSkeleton::say(const std::string& message) { character->getSocket().emit("say", {{"message", message}}); }
+void PlayerSkeleton::partySay(const std::string& message) { character->getSocket().emit("say", {{"message", message}, {"party", true}}); }
+void PlayerSkeleton::sendPm(const std::string& message, const std::string& user) { character->getSocket().emit("say", {{"message", message}, {"name", user}}); }
 
 void PlayerSkeleton::sendCm(const nlohmann::json& to, const nlohmann::json& message) {
     if (to.is_array() && to.size() == 0) {

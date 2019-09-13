@@ -43,7 +43,7 @@ void SmartMoveHelper::injectDoorPath(std::vector<std::string>& vec) { mapPath = 
 
 void SmartMoveHelper::pushNode(const nlohmann::json& j) { checkpoints.push_back(j); }
 
-void SmartMoveHelper::pushNodes(const std::vector<std::pair<int, int>> movementNodes) {
+void SmartMoveHelper::pushNodes(const std::vector<std::pair<int, int>>& movementNodes) {
     for (auto& pos : movementNodes) {
         checkpoints.push_back({{"x", pos.first}, {"y", pos.second}});
     }

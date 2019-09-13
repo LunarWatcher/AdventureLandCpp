@@ -58,7 +58,7 @@ bool MapProcessor::canMove(const double& x1, const double& y1, const double& x2,
         for (const auto& i : defs::hitbox) {
             int hitboxX = i[0];
             int hitboxY = i[1];
-            if (!canMove(x1 + hitboxX / 2.0, y1 + hitboxY / 2.0, x2 + hitboxX / 2.0, y2 + hitboxY / 2.0, geom, true)) {
+            if (!canMove(x1 + hitboxX, y1 + hitboxY, x2 + hitboxX, y2 + hitboxY, geom, true)) {
                 return false;
             }
         }

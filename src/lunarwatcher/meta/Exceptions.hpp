@@ -18,6 +18,7 @@ namespace advland {
 
 createException(LoginException)
 createException(EndpointException)
+createException(IOException)
 
 createException(IllegalArgumentException)
 createException(EmptyInputException)
