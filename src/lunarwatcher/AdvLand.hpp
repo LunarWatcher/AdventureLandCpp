@@ -88,7 +88,7 @@ public:
         for (auto& [id, username] : characters) {
             if (username == name) {
                 std::shared_ptr<Player> bot = std::make_shared<Player>(
-                    username, id, server.getIp() + ":" + std::to_string(server.getPort()), *this, skeleton);
+                    username, id, server.getIp() + ":" + std::to_string(server.getPort()), std::make_pair(server.getRegion(), server.getName()), *this, skeleton);
                 this->bots.push_back(bot);
                 skeleton.injectPlayer(bot); // Inject the player into the skeleton. Might be better to do in onConnect
                 return;

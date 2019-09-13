@@ -96,8 +96,7 @@ bool SmartMoveHelper::isNextTransport() {
 bool SmartMoveHelper::isSearching() { return searching; }
 void SmartMoveHelper::ready() { searching = false; }
 void SmartMoveHelper::manageFutures() {
-    if (futures.size() == 0)
-        return;
+    if (futures.size() == 0) return;
     futures.erase(std::remove_if(futures.begin(), futures.end(),
                                  [](std::future<void>& future) {
                                      if (future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {

@@ -1,12 +1,16 @@
 #ifndef LUNARWATCHER_ADVLAND_PLAYERSKELETON
 #define LUNARWATCHER_ADVLAND_PLAYERSKELETON
 
+#include "lunarwatcher/movement/SmartMoveHelper.hpp"
 #include "lunarwatcher/net/SocketWrapper.hpp"
 #include "lunarwatcher/objects/GameData.hpp"
+#include "lunarwatcher/utils/ParsingUtils.hpp"
 #include "lunarwatcher/utils/Timer.hpp"
 #include "nlohmann/json.hpp"
 #include <chrono>
 #include <functional>
+#include <future>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <optional>
@@ -15,13 +19,8 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <iostream>
-#include <future>
-#include "lunarwatcher/utils/ParsingUtils.hpp"
-#include "lunarwatcher/movement/SmartMoveHelper.hpp"
 
 namespace advland {
-
 
 class Player;
 class PlayerSkeleton {
@@ -76,7 +75,7 @@ public:
     bool canAttack(nlohmann::json& entity);
     bool canUse(const std::string& skill);
     bool inAttackRange(nlohmann::json& entity);
-    
+
     void move(double x, double y);
     bool smartMove(const nlohmann::json& destination);
     bool smartMove(const nlohmann::json& destination, std::function<void()> callback);
@@ -123,9 +122,14 @@ public:
     void heal(nlohmann::json& entity);
     void respawn();
     nlohmann::json getNearestMonster(const nlohmann::json& attribs);
+    
+    /**
+     * Gets multiple nearby hostiles
+     */
+    std::vector<nlohmann::json> getNearbyHostiles(int limit = 0, const std::string& type = "", int range = 100);
 
-    void useSkill(const std::string& ability);
-    void use(const std::string& skill);
+    void useSkill(const std::string& ability, const nlohmann::json& data = {});
+    void useItem(const std::string& skill);
     void loot(bool safe = true /*, std::string sendChestIdsTo=""*/);
 
     void sendGold(std::string to, unsigned long long amount);
@@ -138,8 +142,17 @@ public:
      */
     void equip(int inventoryIdx, std::string itemSlot = "");
 
+    /**
+     * Attempts to find an item in the character's inventory.
+     *
+     * Returns an empty optional if none is found, otherwise the ID of
+     * the item.
+     */
+    std::optional<int> findItem(const std::string& name);
+
     nlohmann::json getPlayer(std::string name);
     nlohmann::json getTarget();
+    std::string getIdFromJsonOrDefault(const nlohmann::json& entity);
 
     void changeTarget(const nlohmann::json& entity);
     void sendTargetLogic(const nlohmann::json& entity);
@@ -149,6 +162,8 @@ public:
     SmartMoveHelper& getSmartHelper() { return smart; }
     const GameData& getGameData();
     SocketWrapper& getSocket();
+
+    bool isPvp();
 };
 
 } // namespace advland

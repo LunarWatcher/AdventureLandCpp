@@ -14,14 +14,16 @@ private:
     int port;
     bool pvp;
     std::string gameplay;
+    std::string parentCluster;
 
 public:
-    Server(std::string name, std::string ip, int port, bool pvp, std::string gameplay)
-            : name(name), ip(ip), port(port), pvp(pvp), gameplay(gameplay) {}
+    Server(std::string name, std::string ip, int port, bool pvp, std::string gameplay, std::string parentCluster)
+            : name(name), ip(ip), port(port), pvp(pvp), gameplay(gameplay), parentCluster(parentCluster) {}
 
     std::string& getName() { return name; }
     std::string& getIp() { return ip; }
     std::string& getGameplay() { return gameplay; }
+    std::string& getRegion() { return parentCluster; }
     int getPort() { return port; }
     bool isPvp() { return pvp; }
 };
@@ -47,10 +49,10 @@ public:
 
     void update(std::string& identifier, Server server) {
         if (servers.size() == 0) throw IllegalArgumentException("Cannot update an empty vector");
-        std::remove_if(servers.begin(), servers.end(), 
+        servers.erase(std::remove_if(servers.begin(), servers.end(), 
                 [identifier](Server& server) { 
                     return server.getName() == identifier; 
-                });
+                }), servers.end());
         this->servers.push_back(server);
     }
 

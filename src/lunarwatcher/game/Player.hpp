@@ -5,6 +5,7 @@
 #include "lunarwatcher/net/SocketWrapper.hpp"
 #include <type_traits>
 #include <nlohmann/json.hpp>
+#include "lunarwatcher/objects/Server.hpp"
 
 namespace advland {
 
@@ -24,7 +25,9 @@ private:
     nlohmann::json party;
 
     bool mHasStarted = false;
- 
+    // cluster, identifier 
+    std::pair<std::string, std::string> server; 
+
 public:
     /**
      * Creates a new player.
@@ -35,7 +38,7 @@ public:
      * @param client   The client associated with the account.
      * @param skeleton Contains the user-defined code.
      */
-    Player(std::string name, std::string uid, std::string fullUrl, AdvLandClient& client, PlayerSkeleton& skeleton);
+    Player(std::string name, std::string uid, std::string fullUrl, const std::pair<std::string, std::string>& server, AdvLandClient& client, PlayerSkeleton& skeleton);
     
     
     void start();
@@ -100,6 +103,8 @@ public:
     }
 
     const nlohmann::json& getParty() { return party; }
+
+    std::optional<Server*> getServer();
 
     friend class PlayerSkeleton;
 };

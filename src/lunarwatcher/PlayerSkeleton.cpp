@@ -51,11 +51,11 @@ void PlayerSkeleton::dijkstraProcessor() {
     nlohmann::json target = nullptr;
     mSkeletonLogger->info("Path found!");
     while (killSwitch) {
-        if (target.is_null() || (!getOrElse(target, "transport", false) && character->getX() == target["x"].get<int>() && character->getY() == target["y"])) {
+        if (target.is_null() || (!getOrElse(target, "transport", false) &&
+                                 character->getX() == target["x"].get<int>() && character->getY() == target["y"])) {
             if (!smart.hasMore()) break;
             target = smart.getAndRemoveFirst();
-            if (getOrElse(target, "transport", false) == true) 
-                continue;
+            if (getOrElse(target, "transport", false) == true) continue;
             move(target["x"].get<int>(), target["y"].get<int>());
         } else if (getOrElse(target, "transport", false) == true || smart.isNextTransport()) {
             auto& peek = smart.isNextTransport() ? smart.peekNext() : target;
@@ -66,8 +66,7 @@ void PlayerSkeleton::dijkstraProcessor() {
                 while (peek["map"].get<std::string>() != character->getMap()) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
-                if (smart.isNextTransport())
-                    smart.ignoreFirst();
+                if (smart.isNextTransport()) smart.ignoreFirst();
                 target = nullptr;
                 continue;
             }
@@ -208,20 +207,117 @@ bool PlayerSkeleton::canWalk(const nlohmann::json& entity) {
     return true;
 }
 
-void PlayerSkeleton::useSkill(const std::string& ability) {
+void PlayerSkeleton::useSkill(const std::string& ability, const nlohmann::json& data) {
+    static std::vector<std::string> nameSkills = {
+        "invis", "partyheal", "darkblessing", "agitate", "cleave", "stomp", "charge", "light", "hardshell", "track", "warcry", "mcourage", "scare"
+    };
+    static std::vector<std::string> nameIdSkills = {
+        "supershot", "quickpunch", "quickstab", "taunt", "curse", "burst", "4fingers", "magiport", "absorb", "mluck", "rspeed", "charm", "mentalburst", "piercingshot", "huntersmark"
+    };
+
     if (ability == "use_hp" || ability == "hp")
-        use("hp");
+        useItem("hp");
     else if (ability == "use_mp" || ability == "mp")
-        use("mp");
+        useItem("mp");
+    else if (ability == "stop") {
+        move(character->getX(), character->getY());
+        getSocket().emit("stop");
+    } else if (ability == "use_town" || ability == "town") {
+        if (!character->isAlive()) {
+            getSocket().emit("respawn");
+        } else {
+            getSocket().emit("town");
+        }
+    } else if (ability == "cburst") {
+        if (data.is_array()) {
+            getSocket().emit("skill", {{"name", "cburst"}, {"targets", data}});
+        } else {
+            auto entities = getNearbyHostiles(
+                12, data.is_object() && data.find("type") != data.end() ? data["type"].get<std::string>() : "",
+                character->getRange() - 2);
+            
+            std::vector<nlohmann::json> ids;
+
+            int mana = (character->getMp() - 200) / entities.size();
+
+            for (auto& entity : entities) {
+                ids.push_back(nlohmann::json::array({entity["id"].get<std::string>(), mana}));
+            }
+
+            getSocket().emit("skill", {{"name", "cburst"}, {"targets", ids}});
+        }
+    } else if (ability == "3shot" || ability == "5shot") {
+        int count = ability[0] - '0';
+        if (data.is_array()) {
+            getSocket().emit("skill", {{"name", ability}, {"ids", data}});
+        } else {
+            auto entities = getNearbyHostiles(count, data.is_object() && data.find("type") != data.end() ? data["type"].get<std::string>() : "",
+                    character->getRange() - 2);
+            std::vector<std::string> ids;
+            for (auto& entity : entities) { ids.push_back(entity["id"].get<std::string>()); }
+            getSocket().emit("skill", {{"name", ability}, {"ids", ids}});
+        }
+    } else if (ability == "pcoat") {
+        auto item = findItem("poison");
+        if (!item.has_value()) {
+            mSkeletonLogger->warn("{}: You don't have the item required to use the pcoat skill (poison)", character->getName());
+            return;
+        }
+        getSocket().emit("skill", {{"name", "pcoat"}, {"num", item.value()}});
+
+    } else if (ability == "revive") {
+        auto item = findItem("essenceoflife");
+        if (!item.has_value()) {
+            mSkeletonLogger->warn("{}: You don't have the item required to use the revive skill (essenceoflife)", character->getName());
+            return;
+        }
+        getSocket().emit("skill", {{"name", ability}, {"num", item.value()}});
+    } else if (ability == "poisonarrow") {
+        auto item = findItem("poison");
+        if (!item.has_value()) {
+            mSkeletonLogger->warn("{}: You don't have the item required to use the poisonarrow skill (poison)", character->getName());
+            return;
+        }
+        getSocket().emit("skill", {{"name", ability}, {"num", item.value()}, {"id", data.is_object() ? data["id"].get<std::string>() : data.get<std::string>()}});
+    } else if (ability == "shadowstrike" || ability == "phaseout") {
+        auto item = findItem("shadowstone");
+        if (!item.has_value()) {
+            mSkeletonLogger->warn("{}: You don't have the item required to use the {} skill (shadowstone)", character->getName(), ability);
+            return;
+        }
+        getSocket().emit("skill", {{"name", ability}, {"num", item.value()}});
+    } else if (ability == "throw") {
+        if (character->getInventory()[data["slot"].get<int>()].is_null()) {
+            mSkeletonLogger->warn("{}: There is no item in slot {}", character->getName(), data["slot"].get<int>());
+            return;
+        }
+        getSocket().emit("skill", {{"name", ability}, {"num", data["slot"].get<int>()}, {"id", data["id"].get<std::string>()}});
+    } else if(ability == "blink") {
+        int x, y;
+        if (data.is_array()) {
+            x = data[0];
+            y = data[1];
+        } else {
+            x = data["x"].get<int>();
+            y = data["y"].get<int>();
+        }
+        getSocket().emit("skill", {{"name", ability}, {"x", x}, {"y", y}});
+    } else if (ability == "energize") {
+        // TODO: Add mana if/when it gets fixed
+        getSocket().emit("skill", {{"name", ability}, {"id", data.is_object() ? data["id"].get<std::string>() : data.get<std::string>()}});
+    } else if (std::find(nameSkills.begin(), nameSkills.end(), ability) != nameSkills.end()) {
+        getSocket().emit("skill", {{"name", ability}});
+    } else if (std::find(nameIdSkills.begin(), nameIdSkills.end(), ability) != nameIdSkills.end()) {
+        getSocket().emit("skill", {{"name", ability}, {"id", data.is_object() ? data["id"].get<std::string>() : data.get<std::string>()}});
+    } 
 }
 
-void PlayerSkeleton::use(const std::string& item) {
+void PlayerSkeleton::useItem(const std::string& item) {
     auto& itemData = character->getClient().getData()["items"];
     for (unsigned long long i = 0; i < character->getInventory().size(); i++) {
         const nlohmann::json& iItem = character->getInventory()[i];
         if (iItem.is_null()) continue;
-        if (iItem.find("name") == iItem.end() || !iItem["name"].is_string())
-            continue;
+        if (iItem.find("name") == iItem.end() || !iItem["name"].is_string()) continue;
         auto& iItemData = itemData[iItem["name"].get<std::string>()];
         if (iItemData.find("gives") != iItemData.end()) {
             auto& gives = iItemData["gives"];
@@ -238,6 +334,19 @@ void PlayerSkeleton::use(const std::string& item) {
 
 void PlayerSkeleton::equip(int inventoryIdx, std::string itemSlot) {
     character->getSocket().emit("equip", {{"num", inventoryIdx}, {"slot", itemSlot}});
+}
+
+std::optional<int> PlayerSkeleton::findItem(const std::string& name) {
+    for (unsigned long long i = 0; i < character->getInventory().size(); i++) {
+        auto& slot = character->getInventory()[i];
+
+        if (!slot.is_null()) {
+            if (slot["name"].get<std::string>() == name) {
+                return i;
+            }
+        }
+    }
+    return std::nullopt;
 }
 
 void PlayerSkeleton::loot(bool safe) {
@@ -316,8 +425,12 @@ bool PlayerSkeleton::inAttackRange(nlohmann::json& entity) {
 }
 
 void PlayerSkeleton::say(const std::string& message) { character->getSocket().emit("say", {{"message", message}}); }
-void PlayerSkeleton::partySay(const std::string& message) { character->getSocket().emit("say", {{"message", message}, {"party", true}}); }
-void PlayerSkeleton::sendPm(const std::string& message, const std::string& user) { character->getSocket().emit("say", {{"message", message}, {"name", user}}); }
+void PlayerSkeleton::partySay(const std::string& message) {
+    character->getSocket().emit("say", {{"message", message}, {"party", true}});
+}
+void PlayerSkeleton::sendPm(const std::string& message, const std::string& user) {
+    character->getSocket().emit("say", {{"message", message}, {"name", user}});
+}
 
 void PlayerSkeleton::sendCm(const nlohmann::json& to, const nlohmann::json& message) {
     if (to.is_array() && to.size() == 0) {
@@ -391,7 +504,7 @@ void PlayerSkeleton::transport(const std::string& targetMap, int spawn) {
         mSkeletonLogger->warn("Attempt to transport to the map you're currently in ignored.");
         return;
     }
-    
+
     getSocket().emit(
         "transport",
         {{"to", targetMap},
@@ -402,6 +515,31 @@ void PlayerSkeleton::transport(const std::string& targetMap, int spawn) {
 void PlayerSkeleton::leaveParty() { character->getSocket().emit("party", {{"event", "leave"}}); }
 
 void PlayerSkeleton::respawn() { character->getSocket().emit("respawn"); }
+
+std::vector<nlohmann::json> PlayerSkeleton::getNearbyHostiles(int limit, const std::string& type, int range) {
+    if (limit == 0) return {};
+    std::vector<nlohmann::json> entities;
+    bool includePlayers = isPvp();
+
+    for (auto& [id, entity] : character->getEntities()) {
+        if (!entity.is_null()) {
+            if (MovementMath::pythagoras(entity["x"].get<int>(), entity["y"].get<int>(), character->getX(),
+                                         character->getY()) > range)
+                continue;
+            if (type != "" && entity.find("mtype") != entity.end() && entity["mtype"].get<std::string>() == type) {
+                entities.push_back(entity);
+            } else {
+                if (entity["type"].get<std::string>() == "character" && includePlayers && type == "") {
+                    entities.push_back(entity);
+                } else if (entity["type"].get<std::string>() == "monster") {
+                    entities.push_back(entity);
+                }
+            }
+        }
+        if (entities.size() == limit) break;
+    }
+    return entities;
+}
 
 nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) {
     double closest = 999990;
@@ -429,6 +567,17 @@ nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) 
         }
     }
     return j;
+}
+
+std::string PlayerSkeleton::getIdFromJsonOrDefault(const nlohmann::json& entity) {
+    if (!entity.is_null() && entity.find("id") != entity.end()) {
+        return entity["id"].get<std::string>();
+    }
+    nlohmann::json target = getTarget();
+    if (target.is_null() || target.find("id") == target.end()) {
+        return "";
+    }
+    return target["id"].get<std::string>();
 }
 
 nlohmann::json PlayerSkeleton::getTarget() {
@@ -469,5 +618,16 @@ void PlayerSkeleton::sendTargetLogic(const nlohmann::json& target) {
 
 const GameData& PlayerSkeleton::getGameData() { return character->getClient().getData(); }
 SocketWrapper& PlayerSkeleton::getSocket() { return character->wrapper; }
+
+bool PlayerSkeleton::isPvp() {
+    auto server = character->getServer();
+
+    if (server.has_value() && (*server.value()).isPvp()) {
+        return true;
+    }
+    auto& cache = character->getClient().getData()["maps"][character->getMap()];
+
+    return cache.find("pvp") != cache.end() && cache["pvp"].get<bool>() == true;
+}
 
 } // namespace advland

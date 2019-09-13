@@ -10,7 +10,8 @@ namespace advland {
 namespace ConfigHelper {
 
     /**
-     * Helper method: Loads a JSON object from a file.
+     * Helper method: Loads a JSON object from a file. You can use this to load your own JSON config 
+     * to create modifiable bots without having to recompile.
      *
      * @param filename    Self-explanatory: the file to load. 
      * @param out         The JSON object to load into. Should be an empty/newly initialized instance of nlohmann::json.

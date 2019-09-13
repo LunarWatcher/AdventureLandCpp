@@ -214,7 +214,7 @@ void AdvLandClient::collectServers() {
             pvp = server["pvp"];
         }
 
-        Server parsedServer(serverIdentifier, ip, port, pvp, gameplay);
+        Server parsedServer(serverIdentifier, ip, port, pvp, gameplay, clusterIdentifier);
 
         for (ServerCluster& cluster : this->serverClusters) {
             if (cluster.getRegion() == clusterIdentifier) {

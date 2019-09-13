@@ -294,6 +294,7 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
                 // Note about the socket.io standard: sending a plain text message using socket.send
                 // should send an event called message with the message as the data. The fallback
                 // exists mainly because I have no idea what I'm doing. This might never be used.
+                dispatchEvent("message", json);
             }
             // type = 0 for the connect packet
             // type = 1 for the disconnect packet
@@ -307,7 +308,9 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
                             // dispatch eventName, {}
                             dispatchEvent(eventName, {});
                         } else {
-                            auto data = json[1];
+                            auto data = json[1]; 
+                            if (eventName == "error")
+                                mLogger->info("Error received as a message! Dumping JSON:\n{}", json.dump(4));
                             dispatchEvent(eventName, data);
                         }
                     }
@@ -348,6 +351,7 @@ void SocketWrapper::messageReceiver(const ix::WebSocketMessagePtr& message) {
         mLogger->info("Connected");
     } else if (message->type == ix::WebSocketMessageType::Close) {
         mLogger->info("Socket disconnected: {}", message->closeInfo.reason);
+        hasReceivedFirstEntities = false;
         if (message->str != "")
             mLogger->info("Also received a message: {}", message->str);
     }
