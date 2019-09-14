@@ -168,11 +168,25 @@ void SocketWrapper::initializeSystem() {
     this->registerEventCallback("cm", [this](const nlohmann::json& event) {
         player.getSkeleton().onCm(event["name"].get<std::string>(), event["message"]); 
     });
+    this->registerEventCallback("pm", [this](const nlohmann::json& event){
+        std::string owner = event["owner"].get<std::string>();
+        player.getSkeleton().onPm(owner, event["message"].get<std::string>());
+    });
+    this->registerEventCallback("chat_log", [this](const nlohmann::json& event) {
+        player.getSkeleton().onChat(event["owner"].get<std::string>(), event["message"].get<std::string>());
+    });
     this->registerEventCallback("invite", [this](const nlohmann::json& event) {
         player.getSkeleton().onPartyInvite(event["name"].get<std::string>());
     });
     this->registerEventCallback("request", [this](const nlohmann::json& event) {
         player.getSkeleton().onPartyRequest(event["name"].get<std::string>());
+    });
+    /**
+     * Position correction. 
+     */
+    this->registerEventCallback("correction", [this](const nlohmann::json& event) {
+        mLogger->warn("Location corrected!");
+        // TODO 
     });
     this->registerEventCallback("party_update", [this](const nlohmann::json& event) {
         player.setParty(event["party"]); 

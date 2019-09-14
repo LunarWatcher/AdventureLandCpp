@@ -1,5 +1,5 @@
-bin/
-build/
+bin*/
+build*/
 
 credentials.json
 config.log

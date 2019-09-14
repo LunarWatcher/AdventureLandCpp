@@ -67,7 +67,9 @@ public:
     virtual void onPartyInvite(std::string /* name */) {}
 
     virtual void onFriendRequest() {}
-    virtual void onCm(std::string /* name */, const nlohmann::json& /* data */) {}
+    virtual void onCm(const std::string& /* name */, const nlohmann::json& /* data */) {}
+    virtual void onPm(const std::string& /* name */, const std::string& /* message */) {}
+    virtual void onChat(const std::string& /* name */, const std::string& /* message */) {}
 
     // API functions
     bool canMove(double x, double y);

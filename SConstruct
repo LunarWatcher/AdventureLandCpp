@@ -1,14 +1,16 @@
 import os 
 import subprocess
 
-
+# TODO: check if these actually work, and migrate to options if it doesn't
 envVars = Variables(None, ARGUMENTS)
 envVars.Add(BoolVariable("mingw", "Whether to use MinGW or not. Windows only", False))
 envVars.Add(BoolVariable("overrideMingw", "If, for some reason, MinGW mode breaks Clang or GCC on your system, enable this. Windows only", False))
-envVars.Add(BoolVariable("debug", "Puts the program in debug mode. Adds debug information, removes -O3", False))
 
-env = Environment()
+AddOption("--d-debug", dest="debug", action="store_true", default=False, help="Whether to debug or not. Not defining results in debug being enabled.")
 
+env = Environment(vars=envVars)
+
+winToolkit = GetOption("WinToolkitPath")
 
 def getSystemInfo():
     gcc = os.getenv("CXX") == "g++"
@@ -42,14 +44,14 @@ def installPackages():
     the build, but what can you do? This assumes the rest of the environment is in place. 
     """
     # Make the build directory if it doesn't exist yet
-    if not os.path.exists("build"):
-        os.makedirs("build")
-    if (os.path.isfile("build/SConscript_conan")):
+    if not os.path.exists("build-" + platform):
+        os.makedirs("build-" + platform)
+    if (os.path.isfile("build-" + platform + "/SConscript_conan")):
         return;
     print("WARN: Conan not initialized. Installing packages now. Note that " \
         "this ignores any missing packages, and may cause the build to fail.")
     # Then change the directory
-    os.chdir("build")
+    os.chdir("build-" + platform)
     # Run conan
     result = os.system("conan install ../ --build missing")
     if(result != 0):
@@ -61,12 +63,12 @@ def configureConan():
     # Build system setup.
     # Load it:
     # Note that this builds on Conan being executed in the build folder. 
-    conan = SConscript("build/SConscript_conan")
+    conan = SConscript("build-" + platform + "/SConscript_conan")
     # Finally, merge the conan flags with the current environment. 
     # This is also why the function is called later
     env.MergeFlags(conan['conan'])
     # Expose this to make it returnable. 
-    return conan 
+    return conan
 
 (platform, gcc, clang) = getSystemInfo()
 handleMingw(platform, gcc, clang)
@@ -96,14 +98,22 @@ if (gcc or clang):
 else:
     compileFlags = "/std:c++17"
 
-if "debug" in env and env["debug"] is False:
+if (platform == "windows"):
+    compileFlags += " -D_WIN32_WINNT=0x600 "
+
+shouldDebug = GetOption("debug")
+if shouldDebug is False:
+    print("The build is not debug");
     if (clang or gcc):
         compileFlags += " -O3 "
     else:
         compileFlags += " /O2 "
 else:
+    print("Building with debug flags...");
     if (clang or gcc):
-        compileFlags += " -g -fstandalone-debug -O0 "
+        compileFlags += " -g -O0 "
+
+        
     else:
         compileFlags += " /DEBUG " 
 env.Append(CXXFLAGS=compileFlags)
@@ -111,7 +121,7 @@ env.Append(CXXFLAGS=compileFlags)
 hasDummyDir = os.path.exists("DummyApp")
 
 cppPath = ["src/"]
-libPath = ["bin/"]
+libPath = ["bin-" + platform + "/"]
 
 env.Append(CPPPATH=cppPath)
 env.Append(LIBPATH=libPath)
@@ -122,13 +132,13 @@ installPackages()
 # conan with the current config. 
 data = configureConan();
 
-env.VariantDir("build/src", "src", duplicate=0)
-stacklib = env.Library("bin/AdvLandCpp", Glob("build/src/lunarwatcher/*.cpp"))
+env.VariantDir("build-" + platform + "/src", "src", duplicate=0)
+lib = env.Library("bin-" + platform + "/AdvLandCpp", Glob("build-" + platform + "/src/lunarwatcher/*.cpp"))
 
 env.Prepend(LIBS=["AdvLandCpp"])
 
 if(hasDummyDir):
-    env.VariantDir("build/testapp", "DummyApp", duplicate=0)
-    env.Program("bin/DummyApp", "build/testapp/HelloWorld.cpp")
-    env.Program("bin/Experimental", "build/testapp/CompilerTest.cpp")
+    env.VariantDir("build-" + platform + "/testapp", "DummyApp", duplicate=0)
+    env.Program("bin-" + platform + "/DummyApp", "build-" + platform + "/testapp/HelloWorld.cpp")
+    env.Program("bin-" + platform + "/Experimental", "build-" + platform + "/testapp/CompilerTest.cpp")
 

@@ -14,8 +14,7 @@ bool AdvLandClient::running = true;
 AdvLandClient::AdvLandClient() : AdvLandClient("credentials.json") {}
 
 AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) : session("adventure.land", 443,
-                  new Context(Context::CLIENT_USE, "", "", "", Context::VERIFY_NONE, 9, false,
-                              "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH")){
+                  new Poco::Net::Context(Context::CLIENT_USE, "", Context::VERIFY_NONE)){
     std::ifstream creds(credentialFileLocation);
     if (!creds) {
         mLogger->error("Failed to find credentials.json. To pass the email and password directly, please use AdvLandClient(std::string, std::string).");
@@ -28,8 +27,7 @@ AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) : sessio
 }
 AdvLandClient::AdvLandClient(const nlohmann::json& email, const nlohmann::json& password)
         : session("adventure.land", 443,
-                  new Context(Context::CLIENT_USE, "", "", "", Context::VERIFY_NONE, 9, false,
-                              "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH")) {
+                  new Poco::Net::Context(Context::CLIENT_USE, "", Context::VERIFY_NONE)) {
     construct(email, password); 
 }
 
