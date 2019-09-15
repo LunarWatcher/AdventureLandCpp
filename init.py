@@ -24,11 +24,13 @@ if (init):
     print("Initializing submodules...")
     os.system("git submodule update --init --recursive")
 
+build = input("Non-standard build location? (Enter to skip, folder name (i.e. my-build) otherwise)")
+if (build == ""):
+    build = "build"
+if not os.path.exists(build):
+    os.mkdir(build)
 
-if not os.path.exists("build"):
-    os.mkdir("build")
-
-os.chdir("build")
+os.chdir(build)
 result = os.system("conan install ../ --build missing")
 
 if (result != 0):
@@ -40,5 +42,5 @@ init = input("Create symlinks? (True/False): ") in ["yes", "1", "true", "True"]
 
 if (init):
     # Symlinks
-    import VSConan.init
-
+    from VSConan.init import run
+    run(buildFolder = build);    

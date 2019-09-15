@@ -7,7 +7,7 @@
 -IvsInclude/fmt
 -IvsInclude/jsonformoderncpp
 -IvsInclude/OpenSSL
--IvsInclude/Poco
+-IvsInclude/cpr
 -IvsInclude/spdlog
 -IvsInclude/zlib
 -IvsInclude/IXWebSocket

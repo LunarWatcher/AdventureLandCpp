@@ -13,8 +13,7 @@ bool AdvLandClient::running = true;
 
 AdvLandClient::AdvLandClient() : AdvLandClient("credentials.json") {}
 
-AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) : session("adventure.land", 443,
-                  new Poco::Net::Context(Context::CLIENT_USE, "", Context::VERIFY_NONE)){
+AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) {
     std::ifstream creds(credentialFileLocation);
     if (!creds) {
         mLogger->error("Failed to find credentials.json. To pass the email and password directly, please use AdvLandClient(std::string, std::string).");
@@ -25,9 +24,7 @@ AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) : sessio
     creds >> tmp;
     construct(tmp["email"], tmp["password"]); 
 }
-AdvLandClient::AdvLandClient(const nlohmann::json& email, const nlohmann::json& password)
-        : session("adventure.land", 443,
-                  new Poco::Net::Context(Context::CLIENT_USE, "", Context::VERIFY_NONE)) {
+AdvLandClient::AdvLandClient(const nlohmann::json& email, const nlohmann::json& password) {
     construct(email, password); 
 }
 
@@ -47,12 +44,9 @@ AdvLandClient::~AdvLandClient() { ix::uninitNetSystem(); }
 void AdvLandClient::login(const std::string& email, const std::string& password) {
 
     std::stringstream indexStream;
-    HTTPRequest connect(HTTPRequest::HTTP_GET, "/", HTTPMessage::HTTP_1_1);
-    session.sendRequest(connect);
-    HTTPResponse indexResponse;
-    session.receiveResponse(indexResponse);
+    auto r = cpr::Get(cpr::Url{"https://adventure.land/"});
 
-    int result = indexResponse.getStatus();
+    int result = r.status_code;
     if (result != 200) {
         throw LoginException("Failed to load index. Received code: " + std::to_string(result));
     }
@@ -60,63 +54,31 @@ void AdvLandClient::login(const std::string& email, const std::string& password)
     mLogger->debug("Connection established. Continuing with login");
 
     // Prepares the request
-    HTTPRequest req(HTTPRequest::HTTP_POST, "/api/signup_or_login", HTTPMessage::HTTP_1_1);
-    HTMLForm form;
-    form.setEncoding(HTMLForm::ENCODING_MULTIPART);
-    form.set("method", "signup_or_login");
-    form.set("arguments", "{\"email\":\"" + email + "\", \"password\": \"" + password + "\", \"only_login\": true}");
-    form.prepareSubmit(req);
-
-    form.write(session.sendRequest(req));
-
-    HTTPResponse loginResponse;
-    std::istream& loginStream = session.receiveResponse(loginResponse);
-    std::stringstream jsonStream;
-    Poco::StreamCopier::copyStream(loginStream, jsonStream);
-
+    auto loginResponse = cpr::Post(cpr::Url{"https://adventure.land/api/signup_or_login"},
+                cpr::Payload{{"method", "signup_or_login"}, {"arguments", "{\"email\":\"" + email + "\", \"password\": \"" + password + "\", \"only_login\": true}"}});
     // Check for base login failure
-    std::string rawJson = jsonStream.str();
+    std::string& rawJson = loginResponse.text;
     if (rawJson.find("\"type\": \"ui_error\"") != std::string::npos) {
         throw LoginException(rawJson);
     }
 
-    // Get the auth token
-    std::vector<HTTPCookie> cookies;
-
-    try {
-        loginResponse.getCookies(cookies);
-    } catch (...) {
-        // These types of catch statements aren't encouraged, but the only documented reason
-        // this would throw is if set-cookies is malformed. This is a bug I can't fix anyway (if it happens,
-        // it's on the AL developers)
-        throw LoginException("Caught an exception from getCookies() - the set-cookies header is probably malformed");
-    }
-    for (auto& cookie : cookies) {
-        if (cookie.getName() == "auth") {
+    auto& cookies = loginResponse.cookies;
+    auto& auth = cookies["auth"];
+    if (auth != "") {
             mLogger->info("Login succeeded");
-            this->sessionCookie = cookie.getValue();
+            this->sessionCookie = auth;
             this->userId = this->sessionCookie.substr(0, this->sessionCookie.find("-"));
             return;
-        }
+        
     }
 
     throw LoginException("Failed to find authentication key");
 }
 
 void AdvLandClient::validateSession() {
-    HTTPRequest request(HTTPRequest::HTTP_GET, "/", HTTPMessage::HTTP_1_1);
-    HTTPResponse response;
+    auto r = cpr::Get(cpr::Url{"https://adventure.land/"}, cpr::Cookies{{"auth", this->sessionCookie}});
 
-    NameValueCollection collection;
-    collection.add("auth", this->sessionCookie);
-    request.setCookies(collection);
-
-    session.sendRequest(request);
-    std::istream& s = session.receiveResponse(response);
-    std::stringstream index;
-    Poco::StreamCopier::copyStream(s, index);
-
-    std::string haystack = index.str();
+    std::string haystack = r.text;
 
     std::regex regex("user_auth=\"([a-zA-Z0-9]+)\"");
     std::smatch match;
@@ -130,18 +92,11 @@ void AdvLandClient::validateSession() {
 
 void AdvLandClient::collectGameData() {
     mLogger->info("Fetching game data...");
-    std::stringstream result;
+    auto r = cpr::Get(cpr::Url{"https://adventure.land/data.js"});
 
-    HTTPRequest request(HTTPRequest::HTTP_GET, "/data.js", HTTPMessage::HTTP_1_1);
-    HTTPResponse response;
-
-    session.sendRequest(request);
-    std::istream& res = session.receiveResponse(response);
-
-    if (response.getStatus() != 200) throw EndpointException("Failed to GET data.js");
-    Poco::StreamCopier::copyStream(res, result);
-
-    std::string rawJson(result.str());
+    if (r.status_code != 200) throw EndpointException("Failed to GET data.js");
+    
+    std::string& rawJson = r.text;
     rawJson = rawJson.substr(6, rawJson.length() - 8);
     this->data = GameData(rawJson);
     mLogger->info("Game data collected.");
@@ -149,26 +104,13 @@ void AdvLandClient::collectGameData() {
 
 void AdvLandClient::collectCharacters() {
     mLogger->info("Collecting characters...");
-    std::stringstream result;
-    HTTPRequest request(HTTPRequest::HTTP_POST, "/api/servers_and_characters", HTTPMessage::HTTP_1_1);
-    NameValueCollection collection;
-    collection.add("auth", this->sessionCookie);
-    request.setCookies(collection);
-    HTTPResponse response;
-    HTMLForm form;
-    form.setEncoding(HTMLForm::ENCODING_MULTIPART);
-    form.set("method", "servers_and_characters");
-    form.set("arguments", "{}");
-    form.prepareSubmit(request);
-    form.write(session.sendRequest(request));
-
-    std::istream& rawStream = session.receiveResponse(response);
-    std::stringstream resultStream;
-    Poco::StreamCopier::copyStream(rawStream, resultStream);
-    std::string rawData = resultStream.str();
-    if (response.getStatus() != 200 || rawData.find("\"args\": [\"Not logged in.\"]") != std::string::npos) {
+    auto r = cpr::Post(cpr::Url{"https://adventure.land/api/servers_and_characters"}, 
+                cpr::Cookies{{"auth", this->sessionCookie}},
+                cpr::Payload{{"method", "servers_and_characters"}, {"arguments", "{}"}});
+    std::string& rawData = r.text;
+    if (r.status_code != 200 || rawData.find("\"args\": [\"Not logged in.\"]") != std::string::npos) {
         throw EndpointException("Failed to retrieve characters and servers (login issue): " +
-                                std::to_string(response.getStatus()) + "\n" + resultStream.str());
+                                std::to_string(r.status_code) + "\n" + rawData);
     }
 
     nlohmann::json data = nlohmann::json::parse(rawData);
@@ -186,15 +128,13 @@ void AdvLandClient::collectCharacters() {
 }
 
 void AdvLandClient::collectServers() {
-    std::stringstream result;
-    HTTPResponse response;
+    
+    cpr::Response response = this->postRequest("get_servers", "{}", true);
+    std::string& rawData = response.text;
 
-    this->postRequest(result, response, "get_servers", "{}", true);
-    std::string rawData = result.str();
-
-    if (response.getStatus() != 200 || rawData.find("\"args\": [\"Not logged in.\"]") != std::string::npos) {
+    if (response.status_code != 200 || rawData.find("\"args\": [\"Not logged in.\"]") != std::string::npos) {
         throw EndpointException("Failed to retrieve characters and servers (login issue): " +
-                                std::to_string(response.getStatus()) + "\n" + rawData);
+                                std::to_string(response.status_code) + "\n" + rawData);
     } else if (rawData.length() == 0) {
         throw EndpointException("Didn't receive any data?");
     }
@@ -234,31 +174,14 @@ void AdvLandClient::collectServers() {
     }
 }
 
-void AdvLandClient::postRequest(std::stringstream& out, HTTPResponse& response, std::string apiEndpoint,
-                                std::string arguments, bool auth, const std::vector<CookiePair>& formData) {
-    HTTPRequest request(HTTPRequest::HTTP_POST, std::string("/api/") + apiEndpoint, HTTPMessage::HTTP_1_1);
-    if (auth) {
-        NameValueCollection cookies;
-        cookies.add("auth", this->sessionCookie);
-        request.setCookies(cookies);
-    }
+cpr::Response AdvLandClient::postRequest(std::string apiEndpoint,
+                                std::string arguments, bool auth, const cpr::Payload& formData) {
+    cpr::Cookies cookies = {};
+    if (auth) cookies = cpr::Cookies{{"auth", this->sessionCookie}};
+    cpr::Payload primaryPayload = {{"method", apiEndpoint}, {"arguments", arguments}};
 
-    HTMLForm form;
-    form.setEncoding(HTMLForm::ENCODING_MULTIPART);
-    // The endpoints that can use this method always sends a POST request with a form containing
-    // a method key with a value matching the endpoint name
-    form.set("method", apiEndpoint);
-    form.set("arguments", arguments);
-    if (formData.size() != 0) {
-        for (CookiePair p : formData) {
-            form.set(p.first, p.second);
-        }
-    }
-    form.prepareSubmit(request);
-    form.write(session.sendRequest(request));
-
-    std::istream& rawStream = session.receiveResponse(response);
-    Poco::StreamCopier::copyStream(rawStream, out);
+    auto r = cpr::Post(cpr::Url{"https://adventure.land/api/" + apiEndpoint}, cookies, formData, primaryPayload);
+    return r;
 }
 
 void AdvLandClient::parseCharacters(nlohmann::json& data) {

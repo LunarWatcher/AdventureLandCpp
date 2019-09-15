@@ -10,8 +10,6 @@ AddOption("--d-debug", dest="debug", action="store_true", default=False, help="W
 
 env = Environment(vars=envVars)
 
-winToolkit = GetOption("WinToolkitPath")
-
 def getSystemInfo():
     gcc = os.getenv("CXX") == "g++"
     clang = os.getenv("CXX") == "clang++"

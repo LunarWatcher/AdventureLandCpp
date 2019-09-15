@@ -1,16 +1,7 @@
 #ifndef LUNARWATCHER_ADVLAND
 #define LUNARWATCHER_ADVLAND
 
-#include "Poco/Exception.h"
-#include "Poco/Net/Context.h"
-#include "Poco/Net/HTMLForm.h"
-#include "Poco/Net/HTTPCookie.h"
-#include "Poco/Net/HTTPMessage.h"
-#include "Poco/Net/HTTPRequest.h"
-#include "Poco/Net/HTTPResponse.h"
-#include "Poco/Net/HTTPSClientSession.h"
-#include "Poco/Net/NameValueCollection.h"
-#include "Poco/StreamCopier.h"
+#include <cpr/cpr.h>
 #include "nlohmann/json.hpp"
 
 #include "game/Player.hpp"
@@ -36,14 +27,9 @@
 
 namespace advland {
 
-using namespace Poco;
-using namespace Poco::Net;
-
 class AdvLandClient {
 private:
     static auto inline const mLogger = spdlog::stdout_color_mt("AdvLandClient");
-    HTTPSClientSession session;
-
     // This is the session cookie. It's used with some calls, and is essential for base
     // post-login auth operations.
     std::string sessionCookie;
@@ -72,8 +58,8 @@ private:
 
     void parseCharacters(nlohmann::json& data);
 
-    void postRequest(std::stringstream& out, HTTPResponse& response, std::string apiEndpoint, std::string arguments,
-                     bool auth, const std::vector<CookiePair>& formData = {});
+    cpr::Response postRequest(std::string apiEndpoint, std::string arguments,
+                     bool auth, const cpr::Payload& formData = {});
 
     void processInternals();
     void construct(const nlohmann::json& email, const nlohmann::json& password);

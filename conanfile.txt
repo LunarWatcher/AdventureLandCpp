@@ -2,7 +2,7 @@
 OpenSSL/1.1.1c@conan/stable
 jsonformoderncpp/3.6.1@vthiery/stable
 spdlog/1.3.1@bincrafters/stable
-Poco/1.9.0@pocoproject/stable
+cpr/1.3.0@DEGoodmanWilson/stable
 IXWebSocket/5.0.0@LunarWatcher/stable
 
 [generators]
