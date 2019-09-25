@@ -1,6 +1,7 @@
 bin*/
 build*/
-
+.vs/
+*.pdb
 credentials.json
 config.log
 .sconf_temp

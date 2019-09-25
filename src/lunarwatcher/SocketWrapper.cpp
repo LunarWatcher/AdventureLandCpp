@@ -191,6 +191,10 @@ void SocketWrapper::initializeSystem() {
     this->registerEventCallback("party_update", [this](const nlohmann::json& event) {
         player.setParty(event["party"]); 
     });
+    
+    this->registerEventCallback("game_error", [this](const nlohmann::json& event) {
+        
+    });
 }
 
 void SocketWrapper::login() {

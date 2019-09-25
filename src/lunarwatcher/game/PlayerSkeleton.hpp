@@ -159,7 +159,7 @@ public:
     void changeTarget(const nlohmann::json& entity);
     void sendTargetLogic(const nlohmann::json& entity);
 
-    Player& getCharacter() { return *character; }
+    std::shared_ptr<Player>& getCharacter() { return character; }
     bool isSmartMoving() { return smart.isSmartMoving(); }
     SmartMoveHelper& getSmartHelper() { return smart; }
     const GameData& getGameData();

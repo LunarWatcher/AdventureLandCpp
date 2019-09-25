@@ -18,7 +18,7 @@ AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) {
     if (!creds) {
         mLogger->error("Failed to find credentials.json. To pass the email and password directly, please use AdvLandClient(std::string, std::string).");
         mLogger->error("If you intended to use this function, make sure the file exists in the current working directory. If it does exist, make sure the permission are correct.");
-        throw "IO failure.";
+        throw IOException("Failed to find credentials");
     }
     nlohmann::json tmp;
     creds >> tmp;
@@ -39,22 +39,31 @@ void AdvLandClient::construct(const nlohmann::json& email, const nlohmann::json&
     mapProcessor.processMaps(data);
 }
 
-AdvLandClient::~AdvLandClient() { ix::uninitNetSystem(); }
+AdvLandClient::~AdvLandClient() { 
+    ix::uninitNetSystem(); 
+    runner.join();
+}
 
 void AdvLandClient::login(const std::string& email, const std::string& password) {
-
     std::stringstream indexStream;
-    auto r = cpr::Get(cpr::Url{"https://adventure.land/"});
 
+    auto r = ::advland::Get(cpr::Url{"https://adventure.land/"});
+
+    if (r.error.message != "") {
+        mLogger->error("Error received when attempting to connect: {}", r.error.message);
+        throw LoginException("");
+    }
+    
     int result = r.status_code;
     if (result != 200) {
+        mLogger->info("Failed to connect: {}", result);
         throw LoginException("Failed to load index. Received code: " + std::to_string(result));
     }
 
     mLogger->debug("Connection established. Continuing with login");
 
     // Prepares the request
-    auto loginResponse = cpr::Post(cpr::Url{"https://adventure.land/api/signup_or_login"},
+    auto loginResponse = ::advland::Post(cpr::Url{"https://adventure.land/api/signup_or_login"},
                 cpr::Payload{{"method", "signup_or_login"}, {"arguments", "{\"email\":\"" + email + "\", \"password\": \"" + password + "\", \"only_login\": true}"}});
     // Check for base login failure
     std::string& rawJson = loginResponse.text;
@@ -76,7 +85,7 @@ void AdvLandClient::login(const std::string& email, const std::string& password)
 }
 
 void AdvLandClient::validateSession() {
-    auto r = cpr::Get(cpr::Url{"https://adventure.land/"}, cpr::Cookies{{"auth", this->sessionCookie}});
+    auto r = ::advland::Get(cpr::Url{"https://adventure.land/"}, cpr::Cookies{{"auth", this->sessionCookie}});
 
     std::string haystack = r.text;
 
@@ -92,7 +101,7 @@ void AdvLandClient::validateSession() {
 
 void AdvLandClient::collectGameData() {
     mLogger->info("Fetching game data...");
-    auto r = cpr::Get(cpr::Url{"https://adventure.land/data.js"});
+    auto r = ::advland::Get(cpr::Url{"https://adventure.land/data.js"});
 
     if (r.status_code != 200) throw EndpointException("Failed to GET data.js");
     
@@ -104,7 +113,7 @@ void AdvLandClient::collectGameData() {
 
 void AdvLandClient::collectCharacters() {
     mLogger->info("Collecting characters...");
-    auto r = cpr::Post(cpr::Url{"https://adventure.land/api/servers_and_characters"}, 
+    auto r = ::advland::Post(cpr::Url{"https://adventure.land/api/servers_and_characters"}, 
                 cpr::Cookies{{"auth", this->sessionCookie}},
                 cpr::Payload{{"method", "servers_and_characters"}, {"arguments", "{}"}});
     std::string& rawData = r.text;
@@ -180,7 +189,7 @@ cpr::Response AdvLandClient::postRequest(std::string apiEndpoint,
     if (auth) cookies = cpr::Cookies{{"auth", this->sessionCookie}};
     cpr::Payload primaryPayload = {{"method", apiEndpoint}, {"arguments", arguments}};
 
-    auto r = cpr::Post(cpr::Url{"https://adventure.land/api/" + apiEndpoint}, cookies, formData, primaryPayload);
+    auto r = ::advland::Post(cpr::Url{"https://adventure.land/api/" + apiEndpoint}, cookies, formData, primaryPayload);
     return r;
 }
 

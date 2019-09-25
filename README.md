@@ -2,20 +2,25 @@
 
 Note that this is a work in progress, and only supports primitive bot scripting at the moment. If you're looking for a fully working alternative while this is being built, check out [ALBot](https://github.com/NexusNull/ALBot/), or stick to the website/steam client. 
 
-If you want to get started with this client, the rough equivalent of default.js is available in the `apidocs` folder. Note that the code is subject to unnotified changes while the library is being developed. 
-
+If you want to get started with this client, the rough equivalent of default.js is available in the `apidocs` folder. Note that the code is subject to unnotified changes while the library is being developed.
 
 # Setup
 
 If you haven't already, make sure your conan profile is set to use C++ 11:
 
 ```
-conan profile update settings.compiler.libcxx=libstdc++11
+conan profile update settings.compiler.libcxx=libstdc++11 Profile
 ```
 
 Visual Studio handles this differently - keep that in mind if you get undefined references. This project is, however, is written with Clang, and is untested with VS.
 
 This is a required step with Clang and possibly GCC to link some dependencies properly. If this is missing, these libraries cause issues with undefined references at compile time. The project itself builds around C++ 17.
+
+Additionally, a library is used that isn't in conan-center. Therefore, the remote has to be added manually:
+
+```
+conan remote add <name> https://api.bintray.com/conan/degoodmanwilson/opensource
+```
 
 # Library developer setup
 

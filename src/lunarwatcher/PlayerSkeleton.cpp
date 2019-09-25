@@ -1,9 +1,9 @@
-#include "game/PlayerSkeleton.hpp"
 #include "AdvLand.hpp"
 #include "game/Player.hpp"
 #include "math/Logic.hpp"
 #include "utils/ParsingUtils.hpp"
 #include <chrono>
+#include "game/PlayerSkeleton.hpp"
 
 namespace advland {
 
@@ -15,7 +15,10 @@ bool PlayerSkeleton::canMove(double x, double y) {
 }
 
 void PlayerSkeleton::move(double x, double y) {
-    if (!canMove(x, y)) return;
+    if (!canMove(x, y)) {
+        mSkeletonLogger->info("WARN: can't move to {}, {}", x, y);
+        return;
+    }
     /*
      * Note to bot devs: checking if it's possible to move is required. There's no
      * server-sided position checking, which means raw socket calls can be used to
@@ -52,8 +55,10 @@ void PlayerSkeleton::dijkstraProcessor() {
     mSkeletonLogger->info("Path found!");
     while (killSwitch) {
         if (target.is_null() || (!getOrElse(target, "transport", false) &&
-                                 character->getX() == target["x"].get<int>() && character->getY() == target["y"])) {
-            if (!smart.hasMore()) break;
+                                 character->getX() == target["x"].get<int>() && character->getY() == target["y"].get<int>())) {
+            if (!smart.hasMore()) { 
+                break; 
+            }
             target = smart.getAndRemoveFirst();
             if (getOrElse(target, "transport", false) == true) continue;
             move(target["x"].get<int>(), target["y"].get<int>());

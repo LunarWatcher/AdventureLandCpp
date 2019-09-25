@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 #include <unordered_map>
+#include "game/PlayerSkeleton.hpp"
 
 namespace advland {
 
@@ -25,10 +26,12 @@ namespace defs {
 
 void MapProcessor::box(double x1, double y1, double x2, double y2, std::vector<bool>& map, int xSize) {
     for (double x = x1; x < x2; x++)
-        for (double y = y1; y < y2; y++)
-            if (map[xSize * y + x] == 0) {
-                map[xSize * y + x] = 1;
+        for (double y = y1; y < y2; y++) {
+            int tmp = xSize * y + x;
+            if (tmp < map.size() && map[tmp] == 0) {
+                map[tmp] = 1;
             }
+        }
 }
 
 int MapProcessor::bSearch(const nlohmann::json& lines, int search) {
@@ -321,14 +324,14 @@ std::vector<std::pair<int, int>> MapProcessor::prunePath(std::vector<std::pair<i
 bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std::string currMap) {
     if (!smart.canRun()) return false;
     auto& character = player.getCharacter();
-    if (smart.getTargetMap() == character.getMap() &&
-        canMove(character.getX(), character.getY(), smart.getTargetX(), smart.getTargetY(),
-                character.getClient().getData()["geometry"][smart.getTargetMap()])) {
-        smart.pushNodes({std::make_pair(character.getX(), character.getY())});
+    if (smart.getTargetMap() == character->getMap() &&
+        canMove(character->getX(), character->getY(), smart.getTargetX(), smart.getTargetY(),
+                player.getGameData()["geometry"][character->getMap()])) {
+        smart.pushNodes({std::make_pair(smart.getTargetY(), smart.getTargetX())});
         return true;
     }
     std::vector<std::tuple<int, int, std::string>> targets;
-    if (currMap == "") currMap = character.getMap();
+    if (currMap == "") currMap = character->getMap();
 
     if (currMap == smart.getTargetMap() || (smart.hasMultipleDestinations() && currMap == smart.getProcessableMap())) {
         int x, y;
@@ -338,8 +341,8 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
 
         if (landingCoords.has_value()) {
             rCurrPos = std::make_pair(landingCoords->first, landingCoords->second);
-        } else if (character.getMap() == currMap)
-            rCurrPos = std::make_pair(character.getX(), character.getY());
+        } else if (character->getMap() == currMap)
+            rCurrPos = std::make_pair(character->getX(), character->getY());
 
         std::optional<Door> door = std::nullopt;
         std::optional<std::string> targetMap = std::nullopt;
@@ -351,7 +354,7 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
 
         } else {
             targetMap = smart.getNextProcessableMap();
-            door = getDoorTo(currMap, targetMap.value(), character.getClient().getData());
+            door = getDoorTo(currMap, targetMap.value(), character->getClient().getData());
             if (!door.has_value()) {
                 // This should never happen, unless the doorDijkstra method is horribly
                 // broken somewhere
@@ -370,7 +373,7 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
         std::vector<std::pair<int, int>> unvisited;
 
         auto& mapObj = maps[currMap];
-        const auto& geom = player.getCharacter().getClient().getData()["geometry"][currMap];
+        const auto& geom = player.getCharacter()->getClient().getData()["geometry"][currMap];
 
         // < <x, y>, <dist,
         std::unordered_map<std::pair<int, int>, PathDist, PairHash> dists;
@@ -408,7 +411,7 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
                 std::reverse(path.begin(), path.end());
                 path.push_back(targetPos);
 
-                auto vec = prunePath(path, character.getClient().getData()["geometry"][currMap]);
+                auto vec = prunePath(path, character->getClient().getData()["geometry"][currMap]);
                 smart.pushNodes(vec);
                 smart.bumpOffset();
                 if (door.has_value()) {
@@ -421,7 +424,7 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
                                     {"s", door->getSpawn(targetMap.value())}});
                 }
 
-                if (character.getMap() == smart.getTargetMap()) {
+                if (character->getMap() == smart.getTargetMap()) {
                     smart.ready();
                 }
                 return true;

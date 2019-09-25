@@ -7,8 +7,10 @@ envVars.Add(BoolVariable("mingw", "Whether to use MinGW or not. Windows only", F
 envVars.Add(BoolVariable("overrideMingw", "If, for some reason, MinGW mode breaks Clang or GCC on your system, enable this. Windows only", False))
 
 AddOption("--d-debug", dest="debug", action="store_true", default=False, help="Whether to debug or not. Not defining results in debug being enabled.")
+AddOption("--dynamic-build", dest="buildPath", action="store_true", default=False, help="Enable dynamic build folders (build-windows, build-unix, ...)")
 
 env = Environment(vars=envVars)
+
 
 def getSystemInfo():
     gcc = os.getenv("CXX") == "g++"
@@ -42,14 +44,14 @@ def installPackages():
     the build, but what can you do? This assumes the rest of the environment is in place. 
     """
     # Make the build directory if it doesn't exist yet
-    if not os.path.exists("build-" + platform):
-        os.makedirs("build-" + platform)
-    if (os.path.isfile("build-" + platform + "/SConscript_conan")):
+    if not os.path.exists(buildFolder):
+        os.makedirs(buildFolder)
+    if (os.path.isfile(buildFolder + "/SConscript_conan")):
         return;
     print("WARN: Conan not initialized. Installing packages now. Note that " \
         "this ignores any missing packages, and may cause the build to fail.")
     # Then change the directory
-    os.chdir("build-" + platform)
+    os.chdir(buildFolder)
     # Run conan
     result = os.system("conan install ../ --build missing")
     if(result != 0):
@@ -61,7 +63,7 @@ def configureConan():
     # Build system setup.
     # Load it:
     # Note that this builds on Conan being executed in the build folder. 
-    conan = SConscript("build-" + platform + "/SConscript_conan")
+    conan = SConscript(buildFolder + "/SConscript_conan")
     # Finally, merge the conan flags with the current environment. 
     # This is also why the function is called later
     env.MergeFlags(conan['conan'])
@@ -70,6 +72,10 @@ def configureConan():
 
 (platform, gcc, clang) = getSystemInfo()
 handleMingw(platform, gcc, clang)
+
+buildFolder = "build"
+if (GetOption("buildPath") is True):
+    buildFolder += "-" + platform
 
 if "TERM" in os.environ:
     # Terminal color hack
@@ -109,11 +115,13 @@ if shouldDebug is False:
 else:
     print("Building with debug flags...");
     if (clang or gcc):
-        compileFlags += " -g -O0 "
-
-        
+        compileFlags += " -g -O0 " 
     else:
-        compileFlags += " /DEBUG " 
+        compileFlags += " /MTd /Zi "
+
+if not clang and not gcc:
+    compileFlags += " /EHsc "
+    env.Append(LINKFLAGS=["/SUBSYSTEM:CONSOLE", "/DEBUG"])
 env.Append(CXXFLAGS=compileFlags)
 
 hasDummyDir = os.path.exists("DummyApp")
@@ -130,13 +138,13 @@ installPackages()
 # conan with the current config. 
 data = configureConan();
 
-env.VariantDir("build-" + platform + "/src", "src", duplicate=0)
-lib = env.Library("bin-" + platform + "/AdvLandCpp", Glob("build-" + platform + "/src/lunarwatcher/*.cpp"))
+env.VariantDir(buildFolder + "/src", "src", duplicate=0)
+lib = env.Library("bin-" + platform + "/AdvLandCpp", Glob(buildFolder + "/src/lunarwatcher/*.cpp"))
 
 env.Prepend(LIBS=["AdvLandCpp"])
 
 if(hasDummyDir):
-    env.VariantDir("build-" + platform + "/testapp", "DummyApp", duplicate=0)
-    env.Program("bin-" + platform + "/DummyApp", "build-" + platform + "/testapp/HelloWorld.cpp")
-    env.Program("bin-" + platform + "/Experimental", "build-" + platform + "/testapp/CompilerTest.cpp")
+    env.VariantDir(buildFolder + "/testapp", "DummyApp", duplicate=0)
+    env.Program("bin-" + platform + "/DummyApp", buildFolder + "/testapp/HelloWorld.cpp")
+    env.Program("bin-" + platform + "/Experimental", buildFolder + "/testapp/CompilerTest.cpp")
 

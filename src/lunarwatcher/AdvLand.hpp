@@ -2,14 +2,16 @@
 #define LUNARWATCHER_ADVLAND
 
 #include <cpr/cpr.h>
+#include <cpr/session.h>
+
 #include "nlohmann/json.hpp"
 
 #include "game/Player.hpp"
 #include "game/PlayerSkeleton.hpp"
 #include "meta/Typedefs.hpp"
+#include "movement/MapProcessing.hpp"
 #include "objects/GameData.hpp"
 #include "objects/Server.hpp"
-#include "movement/MapProcessing.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -58,12 +60,12 @@ private:
 
     void parseCharacters(nlohmann::json& data);
 
-    cpr::Response postRequest(std::string apiEndpoint, std::string arguments,
-                     bool auth, const cpr::Payload& formData = {});
+    cpr::Response postRequest(std::string apiEndpoint, std::string arguments, bool auth,
+                              const cpr::Payload& formData = {});
 
     void processInternals();
     void construct(const nlohmann::json& email, const nlohmann::json& password);
-    
+
 public:
     AdvLandClient();
     AdvLandClient(const std::string& credentialFileLocation);
@@ -73,8 +75,9 @@ public:
     void addPlayer(std::string name, Server& server, PlayerSkeleton& skeleton) {
         for (auto& [id, username] : characters) {
             if (username == name) {
-                std::shared_ptr<Player> bot = std::make_shared<Player>(
-                    username, id, server.getIp() + ":" + std::to_string(server.getPort()), std::make_pair(server.getRegion(), server.getName()), *this, skeleton);
+                std::shared_ptr<Player> bot =
+                    std::make_shared<Player>(username, id, server.getIp() + ":" + std::to_string(server.getPort()),
+                                             std::make_pair(server.getRegion(), server.getName()), *this, skeleton);
                 this->bots.push_back(bot);
                 skeleton.injectPlayer(bot); // Inject the player into the skeleton. Might be better to do in onConnect
                 return;
@@ -83,8 +86,9 @@ public:
     }
 
     /**
-     * Starts the bot in blocking mode. What this implies for you as the developer is that you don't need to manually keep the main thread alive. 
-     * Note that any code placed after this function will not be called until the bot shuts down
+     * Starts the bot in blocking mode. What this implies for you as the developer is that you don't need to manually
+     * keep the main thread alive. Note that any code placed after this function will not be called until the bot shuts
+     * down
      */
     void startBlocking() {
         for (auto& player : bots) {
@@ -94,8 +98,8 @@ public:
     }
 
     /**
-     * Starts the bot async. If you use this, make sure you keep the main thread busy. A while loop with an execution timeout and a decent exit condition
-     * is usually enough.
+     * Starts the bot async. If you use this, make sure you keep the main thread busy. A while loop with an execution
+     * timeout and a decent exit condition is usually enough.
      */
     void startAsync() {
         for (auto& player : bots) {
@@ -109,26 +113,45 @@ public:
 
     std::string& getUserId() { return userId; }
     std::string& getAuthToken() { return userAuth; }
-    GameData& getData() { return data; }   
+    GameData& getData() { return data; }
     MapProcessor& getMapProcessor() { return mapProcessor; }
     bool isLocalPlayer(std::string username);
     void dispatchLocalCm(std::string to, const nlohmann::json& message, std::string from);
     /**
      * This kills all the bot connections, as well as threads created by the client and players.
      * This does NOT kill threads created by the developer in a PlayerSkeleton.
-     * 
+     *
      * Note that calling this incapacitates the client
      */
     void kill();
-    
+
     /**
-     * This method reflects the current run state. If this is true, threads can continue. 
+     * This method reflects the current run state. If this is true, threads can continue.
      * It's advised to use this as a the condition for blocking while-loops in threads.
      *
-     * 
+     *
      */
     static bool canRun();
 };
+template <typename... Ts> cpr::Response Get(Ts&&... ts) {
+    cpr::Session session;
+    cpr::priv::set_option(session, CPR_FWD(ts)...);
+#ifdef _WIN32
+    // TODO: Figure out Windows cert verification
+    session.SetVerifySsl(false);
+#endif
+    return session.Get();
+}
+
+template <typename... Ts> cpr::Response Post(Ts&&... ts) {
+    cpr::Session session;
+    cpr::priv::set_option(session, CPR_FWD(ts)...);
+#ifdef _WIN32
+    session.SetVerifySsl(false);
+#endif
+    return session.Post();
+}
+
 
 } // namespace advland
 

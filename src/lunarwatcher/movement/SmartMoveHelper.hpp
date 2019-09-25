@@ -172,6 +172,7 @@ public:
      * Internal: manages futures created to support callbacks.
      */
     void manageFutures();
+    const std::vector<nlohmann::json>& getCheckpoints() { return checkpoints; }
 };
 
 } // namespace advland
