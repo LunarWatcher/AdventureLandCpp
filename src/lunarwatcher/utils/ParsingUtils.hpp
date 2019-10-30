@@ -9,7 +9,6 @@ namespace advland {
 template <typename T, typename K>
 inline T getOrElse(const nlohmann::json& n, K key,  T defaultValue) {
     if (!n.is_object()) {
-        std::cerr << "ERROR: JSON not an object for " << n.dump() << std::endl;
         return defaultValue;
     }
     if (n.find(key) == n.end()) return defaultValue;

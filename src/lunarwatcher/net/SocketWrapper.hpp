@@ -1,10 +1,6 @@
 #ifndef LUNARWATCHER_NET_SOCKETWRAPPER
 #define LUNARWATCHER_NET_SOCKETWRAPPER
 
-#ifndef USE_STATIC_ENTITIES
-#define USE_STATIC_ENTITIES false
-#endif
-
 #include <functional>
 #include <ixwebsocket/IXWebSocket.h>
 #include <map>
@@ -51,14 +47,12 @@ private:
     std::vector<RawCallback> rawCallbacks;
     std::map<std::string, std::vector<EventCallback>> eventCallbacks;
 
-// Entities
-#if USE_STATIC_ENTITIES
-    static
-#endif
-        std::map<std::string, nlohmann::json> entities;
-    
+    std::map<std::string, nlohmann::json> entities;
+
     std::mutex chestGuard;
     std::mutex deletionGuard;
+    std::mutex entityGuard;
+
     std::map<std::string, nlohmann::json> chests;
 
     // Functions
@@ -112,17 +106,14 @@ public:
 
     void onDisappear(const nlohmann::json& event);
 
-#if USE_STATIC_ENTITIES
-    static
-#endif
-        std::map<std::string, nlohmann::json>&
-        getEntities();
+    std::map<std::string, nlohmann::json>& getEntities();
     std::map<std::string, nlohmann::json>& getChests();
+
     bool isOpen() { return webSocket.getReadyState() == ix::ReadyState::Open; }
     ix::ReadyState getReadyState() { return webSocket.getReadyState(); }
-    std::mutex& getChestGuard() {
-        return chestGuard;
-    }
+    
+    std::mutex& getChestGuard() { return chestGuard; }
+    std::mutex& getEntityGuard() { return entityGuard; }
 };
 
 } // namespace advland

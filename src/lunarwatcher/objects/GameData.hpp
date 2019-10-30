@@ -13,7 +13,7 @@ public:
     GameData(std::string& rawJson) : data(nlohmann::json::parse(rawJson)) {}
     GameData(const GameData& old) : data(old.data) {}
     
-    const nlohmann::json getData() { return data; }
+    const nlohmann::json& getData() { return data; }
 
     const nlohmann::json& operator[](std::string key) const { return data[key]; }
 };

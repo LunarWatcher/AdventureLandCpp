@@ -11,4 +11,5 @@
 -IvsInclude/spdlog
 -IvsInclude/zlib
 -IvsInclude/IXWebSocket
--IvsInclude/libuv
+-IvsInclude/uv
+-IvsInclude/uvw

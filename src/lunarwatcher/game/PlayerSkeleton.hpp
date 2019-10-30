@@ -39,12 +39,15 @@ private:
     std::thread smartMoveThread;
 
     SmartMoveHelper smart;
+    Types::TimePoint last; 
+
     void initSmartMove();
     void dijkstraProcessor();
 
 protected:
     std::shared_ptr<Player> character;
 
+    void processInternals();
 public:
     void injectPlayer(std::shared_ptr<Player> character) { this->character = character; }
 

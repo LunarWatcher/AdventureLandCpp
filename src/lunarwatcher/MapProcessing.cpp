@@ -9,12 +9,14 @@
 #include <string>
 #include <unordered_map>
 #include "game/PlayerSkeleton.hpp"
+#include <limits.h>
 
 namespace advland {
 
 namespace defs {
-
+    
     const double EPS = 1e-8;
+    const double REPS = std::numeric_limits<double>::epsilon();
 
     const std::map<std::string, int> base = {{"h", 8}, {"v", 7}, {"vn", 2}};
     const std::vector<std::vector<int>> hitbox = {{-base.at("h"), base.at("vn")},
@@ -37,7 +39,7 @@ void MapProcessor::box(double x1, double y1, double x2, double y2, std::vector<b
 int MapProcessor::bSearch(const nlohmann::json& lines, int search) {
     int high = 0, low = lines.size() - 1;
     while (high < low - 1) {
-        int m = (low + high) / 2.0;
+        int m = std::floor((low + high) / 2.0);
         if (lines[m][0] < search) {
             high = m;
         } else
@@ -49,37 +51,36 @@ int MapProcessor::bSearch(const nlohmann::json& lines, int search) {
 bool MapProcessor::canMove(const double& x1, const double& y1, const double& x2, const double& y2,
                            const nlohmann::json& geom, bool trigger) {
 
-    auto x = std::min(x1, x2);
-    auto y = std::min(y1, y2);
-    auto X = std::max(x1, x2);
-    auto Y = std::max(y1, y2);
+    double x = std::min(x1, x2);
+    double y = std::min(y1, y2);
+    double X = std::max(x1, x2);
+    double Y = std::max(y1, y2);
 
     const auto& xLines = geom["x_lines"];
     const auto& yLines = geom["y_lines"];
 
     if (!trigger) {
         for (const auto& i : defs::hitbox) {
-            int hitboxX = i[0];
-            int hitboxY = i[1];
+            double hitboxX = i[0];
+            double hitboxY = i[1];
             if (!canMove(x1 + hitboxX, y1 + hitboxY, x2 + hitboxX, y2 + hitboxY, geom, true)) {
                 return false;
             }
         }
 
-        int pH = int(defs::base.at("h"));
-        int nH = -pH;
+        double pH = double(defs::base.at("h"));
+        double nH = -double(defs::base.at("h"));
 
-        int vn = int(defs::base.at("vn"));
-        int v = -int(defs::base.at("v"));
+        double vn = double(defs::base.at("vn"));
+        double v = -double(defs::base.at("v"));
 
         if (x2 > x1) {
-            pH = -pH;
-            nH = -nH;
+            pH = -double(defs::base.at("h"));
+            nH = double(defs::base.at("h"));
         }
         if (y2 > y1) {
-            int tmp = vn;
-            vn = v;
-            v = -tmp;
+            vn = -defs::base.at("v");
+            v = defs::base.at("vn");
         }
 
         if (!canMove(x1 + nH, y1 + vn, x2 + nH, y2 + v, geom, true) ||
@@ -91,37 +92,40 @@ bool MapProcessor::canMove(const double& x1, const double& y1, const double& x2,
     }
 
     for (unsigned long long i = bSearch(xLines, x); i < xLines.size(); i++) {
+        if (i > xLines.size())
+            throw "Fail";
         auto& line = xLines[i];
-        if (line[0].get<int>() == x2 &&
-            ((line[1].get<int>() <= y2 && line[2].get<int>() >= y2) ||
-             (line[0].get<int>() == x1 && y1 <= line[1].get<int>() && y2 > line[1].get<int>()))) {
+        if (line[0].get<double>() == x2 &&
+            ((line[1].get<double>() <= y2 && line[2].get<double>() >= y2) ||
+             (line[0].get<double>() == x1 && y1 <= line[1].get<double>() && y2 > line[1].get<double>()))) {
             return false;
         }
 
-        if (x > line[0].get<int>()) continue;
-        if (X < line[0].get<int>()) break;
+        if (x > line[0].get<double>()) continue;
+        if (X < line[0].get<double>()) break;
 
-        double under = x2 - x1 + defs::EPS;
-        double q = y1 + (y2 - y1) * (double(line[0]) - x1) / (under);
-        if (!(double(line[1]) - defs::EPS <= q && q <= double(line[2]) + defs::EPS)) {
+        double under = x2 - x1 + defs::REPS;
+        double q = y1 + (y2 - y1) * (line[0].get<double>() - x1) / (under);
+        if (!(line[1].get<double>() - defs::EPS <= q && q <= line[2].get<double>() + defs::EPS)) {
             continue;
         }
         return false;
     }
 
     for (unsigned long long i = bSearch(yLines, y); i < yLines.size(); i++) {
+        if (i > yLines.size()) throw "Fail";
         auto& line = yLines[i];
-        if (line[0].get<int>() == y2 &&
-            ((line[1].get<int>() <= x2 && line[2].get<int>() >= x2) ||
-             (line[0].get<int>() == y1 && x1 <= line[1].get<int>() && x2 >= line[1].get<int>()))) {
+        if (line[0].get<double>() == y2 &&
+            ((line[1].get<double>() <= x2 && line[2].get<double>() >= x2) ||
+             (line[0].get<double>() == y1 && x1 <= line[1].get<double>() && x2 >= line[1].get<double>()))) {
             return false;
         }
-        if (y > line[0].get<int>()) continue;
-        if (Y < line[0].get<int>()) break;
+        if (y > line[0].get<double>()) continue;
+        if (Y < line[0].get<double>()) break;
 
-        double under = y2 - y1 + defs::EPS;
-        double q = x1 + (x2 - x1) * (double(line[0]) - y1) / (under);
-        if (!(double(line[1]) - defs::EPS <= q && q <= double(line[2]) + defs::EPS)) {
+        double under = y2 - y1 + defs::REPS;
+        double q = x1 + (x2 - x1) * (line[0].get<double>() - y1) / (under);
+        if (!(line[1].get<double>() - defs::EPS <= q && q <= line[2].get<double>() + defs::EPS)) {
             continue;
         }
 
@@ -327,7 +331,7 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
     if (smart.getTargetMap() == character->getMap() &&
         canMove(character->getX(), character->getY(), smart.getTargetX(), smart.getTargetY(),
                 player.getGameData()["geometry"][character->getMap()])) {
-        smart.pushNodes({std::make_pair(smart.getTargetY(), smart.getTargetX())});
+        smart.pushNodes({std::make_pair(smart.getTargetX(), smart.getTargetY())});
         return true;
     }
     std::vector<std::tuple<int, int, std::string>> targets;

@@ -39,3 +39,14 @@ pip install pypiwin32
 ```
 This is to enable support for the longer compile lines, should they exceed the limits Windows imposes at 1k chars.
 
+# Known problems 
+
+## Undefined references to LibUV
+
+I'm not entierly sure why this is triggered, but I imagine it's related to the central build process. If you find yourself with undefined references to libuv when compiling, build it locally:
+
+```
+$ cd build-folder-name
+$ conan install libuv/1.31.0@bincrafters/stable --build
+```
+

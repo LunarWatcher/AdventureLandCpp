@@ -6,10 +6,6 @@
 
 namespace advland {
 
-#if USE_STATIC_ENTITIES
-std::map<string, nlohmann::json> SocketWrapper::entities = {};
-#endif
-
 #define WIDTH_HEIGHT_SCALE                                                                                             \
     {"width", 1920}, {"height", 1080}, { "scale", 2 }
 
@@ -71,8 +67,10 @@ void SocketWrapper::initializeSystem() {
         }
 
         if (event.find("players") != event.end()) {
+            std::lock_guard<std::mutex> guard(entityGuard);
             nlohmann::json players = event["players"];
             for (auto& player : players) {
+                
                 sanitizeInput(player);
                 player["type"] = "character";
                 player["base"] = {{"h", 8}, {"v", 7}, {"vn", 2}};
@@ -95,6 +93,7 @@ void SocketWrapper::initializeSystem() {
         }
 
         if (event.find("monsters") != event.end()) {
+            std::lock_guard<std::mutex> guard(entityGuard);
             nlohmann::json monsters = event["monsters"];
 
             for (auto& monster : monsters) {
@@ -193,7 +192,14 @@ void SocketWrapper::initializeSystem() {
     });
     
     this->registerEventCallback("game_error", [this](const nlohmann::json& event) {
-        
+        mLogger->error(event.dump()); 
+    });
+    
+    this->registerEventCallback("disconnect", [this](const nlohmann::json& event) {
+        mLogger->error("Disconnected: {}", event.dump());
+    });
+    this->registerEventCallback("disconnect_reason", [this](const nlohmann::json& event) {
+        mLogger->error("Disconnection reason received: {}", event.dump());
     });
 }
 
@@ -388,7 +394,6 @@ void SocketWrapper::dispatchEvent(std::string eventName, const nlohmann::json& e
 }
 
 void SocketWrapper::deleteEntities() {
-    std::lock_guard<std::mutex> guard(deletionGuard);
 
     for (auto it = entities.begin(); it != entities.end();) {
         if (getOrElse((*it).second, "dead", false) || getOrElse((*it).second, "rip", false)) {
