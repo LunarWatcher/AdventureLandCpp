@@ -21,6 +21,14 @@ public:
 
     LoopHelper() { loop = uvw::Loop::create(); }
 
+    /**
+     * Sets a timeout.
+     *
+     * @param callback   The function to call
+     * @param timeout    The amount of time to wait before the callback is executed.
+     *
+     * @returns          A timer pointer you can access. Note that using it isn't required.
+     */
     std::shared_ptr<uvw::TimerHandle> setTimeout(TimerCallback callback, int timeout) {
         auto timer = loop->resource<uvw::TimerHandle>();
         timer->on<uvw::TimerEvent>([callback](const uvw::TimerEvent& event, auto& handle) {
@@ -38,7 +46,7 @@ public:
      * @param callback    The function to call
      * @param interval    The rate to call the function at, in milliseconds
      * @param timeout     The timeout before the first call
-     * @returns           A timer instance you can access. Note that using it isn't required. The handle is also passed
+     * @returns           A timer pointer you can access. Note that using it isn't required. The handle is also passed
      *                    to the callback as the second parameter
      */
     std::shared_ptr<uvw::TimerHandle> setInterval(TimerCallback callback, int interval, int timeout = -1) {

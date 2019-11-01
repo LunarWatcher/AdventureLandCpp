@@ -29,7 +29,7 @@ namespace defs {
 void MapProcessor::box(double x1, double y1, double x2, double y2, std::vector<bool>& map, int xSize) {
     for (double x = x1; x < x2; x++)
         for (double y = y1; y < y2; y++) {
-            int tmp = xSize * y + x;
+            unsigned long long tmp = xSize * y + x;
             if (tmp < map.size() && map[tmp] == 0) {
                 map[tmp] = 1;
             }

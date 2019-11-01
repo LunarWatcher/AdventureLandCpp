@@ -19,6 +19,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include "lunarwatcher/utils/ThreadingUtils.hpp"
 
 namespace advland {
 
@@ -36,19 +37,25 @@ private:
     std::map<std::string, int> cyclableSpawnCounts;
 
     bool killSwitch;
-    std::thread smartMoveThread;
+    std::shared_ptr<uvw::WorkReq> smartMoveHandler;
+    std::thread uvThread;
 
     SmartMoveHelper smart;
     Types::TimePoint last; 
-
+    bool running = true;
     void initSmartMove();
     void dijkstraProcessor();
 
 protected:
     std::shared_ptr<Player> character;
+    LoopHelper loop; 
 
     void processInternals();
 public:
+    ~PlayerSkeleton() {
+        if (uvThread.joinable())
+            uvThread.join();
+    }
     void injectPlayer(std::shared_ptr<Player> character) { this->character = character; }
 
     /**
@@ -64,6 +71,21 @@ public:
      * Invoked when the socket disconnects.
      */
     virtual void onStop() = 0;
+
+    void startUVThread() {
+        running = true;
+        uvThread = std::thread([this]() {
+            while (running) {
+                loop.getLoop()->run<uvw::Loop::Mode::ONCE>();
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        });
+    }
+
+    void stopUVThread() {
+        running = false;
+        uvThread.join();
+    }
 
     // Party
     virtual void onPartyRequest(std::string /* name */) {}
@@ -131,7 +153,7 @@ public:
     /**
      * Gets multiple nearby hostiles
      */
-    std::vector<nlohmann::json> getNearbyHostiles(int limit = 0, const std::string& type = "", int range = 100);
+    std::vector<nlohmann::json> getNearbyHostiles(unsigned long long limit = 0, const std::string& type = "", int range = 100);
 
     void useSkill(const std::string& ability, const nlohmann::json& data = {});
     void useItem(const std::string& skill);
@@ -169,6 +191,35 @@ public:
     SocketWrapper& getSocket();
 
     bool isPvp();
+
+    // Looping
+    /**
+     * Sets a timeout. 
+     */
+    std::shared_ptr<uvw::TimerHandle> setTimeout(LoopHelper::TimerCallback callback, int timeout);
+    
+    /**
+     * Creates an interval
+     */
+    std::shared_ptr<uvw::TimerHandle> setInterval(LoopHelper::TimerCallback callback, int interval, int timeout = -1);
+    
+    /**
+     * Creates a job. This is executed in a threadpool.
+     */
+    std::shared_ptr<uvw::WorkReq> createJob(std::function<void()> callback);
+
+    /**
+     * This must be used for any function calls that modify the loop (i.e. setTimeout or setInterval) when
+     * the function is called inside a job (see {@link createJob}). 
+     */
+    void runOnUiThread(std::function<void(const uvw::AsyncEvent&, uvw::AsyncHandle&)> callback);
+   
+    std::shared_ptr<uvw::TimerHandle> setMainLoop(LoopHelper::TimerCallback callback, int interval) {
+        return setInterval([callback, this](const auto& event, auto& handle) {
+            processInternals(); 
+            callback(event, handle);
+        }, interval, 0);
+    }
 };
 
 } // namespace advland

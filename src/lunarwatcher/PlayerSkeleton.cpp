@@ -37,8 +37,10 @@ void PlayerSkeleton::move(double x, double y) {
 void PlayerSkeleton::initSmartMove() {
     killSwitch = false;
     if (smart.isSearching()) smart.stop(true);
-    if (smartMoveThread.joinable()) smartMoveThread.join();
-    smartMoveThread = std::thread{[this] { dijkstraProcessor(); }};
+    // This shouldn't:tm: throw if the job already has stopped
+    if (smartMoveHandler != nullptr)
+        smartMoveHandler->cancel();
+    smartMoveHandler = createJob(std::bind(&PlayerSkeleton::dijkstraProcessor, this));
 }
 
 void PlayerSkeleton::dijkstraProcessor() {
@@ -534,7 +536,7 @@ void PlayerSkeleton::leaveParty() { character->getSocket().emit("party", {{"even
 
 void PlayerSkeleton::respawn() { character->getSocket().emit("respawn"); }
 
-std::vector<nlohmann::json> PlayerSkeleton::getNearbyHostiles(int limit, const std::string& type, int range) {
+std::vector<nlohmann::json> PlayerSkeleton::getNearbyHostiles(unsigned long long limit, const std::string& type, int range) {
     if (limit == 0) return {};
     std::vector<nlohmann::json> entities;
     bool includePlayers = isPvp();
@@ -651,14 +653,13 @@ bool PlayerSkeleton::isPvp() {
 const Types::TimePoint epoch;
 
 void PlayerSkeleton::processInternals() {
-    if (last == epoch)
-        last = Types::Clock::now();
+    if (last == epoch) last = Types::Clock::now();
 
     getSmartHelper().manageFutures();
-    
+
     std::lock_guard<std::mutex> _(character->getSocket().getEntityGuard());
     character->getSocket().deleteEntities();
-    
+
     auto now = Types::Clock::now();
 
     const double delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count();
@@ -710,6 +711,23 @@ void PlayerSkeleton::processInternals() {
 
         cDelta -= 50;
     }
+}
+
+std::shared_ptr<uvw::TimerHandle> PlayerSkeleton::setTimeout(LoopHelper::TimerCallback callback, int timeout) {
+    return loop.setTimeout(callback, timeout);
+}
+
+std::shared_ptr<uvw::TimerHandle> PlayerSkeleton::setInterval(LoopHelper::TimerCallback callback, int interval,
+                                                              int timeout) {
+    return loop.setInterval(callback, interval, timeout);
+}
+
+std::shared_ptr<uvw::WorkReq> PlayerSkeleton::createJob(std::function<void()> callback) {
+    return loop.createJob(callback);
+}
+
+void PlayerSkeleton::runOnUiThread(std::function<void(const uvw::AsyncEvent&, uvw::AsyncHandle&)> callback) {
+    return loop.exec(callback);
 }
 
 } // namespace advland
