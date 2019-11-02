@@ -96,7 +96,7 @@ if(clang and platform is "windows"):
 if("LINK" in os.environ):
     env["LINK"] = os.environ["LINK"]
 
-if (gcc or clang):
+if (gcc or clang or not platform == "windows"):
     compileFlags = ("-std=c++17 -pedantic -Wall -Wextra " + # I like warnings
         "-Wno-c++11-narrowing")                            # Except this one. Go away. Ktx
 else:
