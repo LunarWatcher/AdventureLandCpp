@@ -108,18 +108,18 @@ if (platform == "windows"):
 shouldDebug = GetOption("debug")
 if shouldDebug is False:
     print("The build is not debug");
-    if (clang or gcc):
+    if (clang or gcc or not platform == "windows"):
         compileFlags += " -O3 "
     else:
         compileFlags += " /O2 "
 else:
     print("Building with debug flags...");
-    if (clang or gcc):
+    if (clang or gcc or not platform == "windows"):
         compileFlags += " -g -O0 " 
     else:
         compileFlags += " /MTd /Zi "
 
-if not clang and not gcc:
+if not clang and not gcc and platform == "windows":
     compileFlags += " /EHsc "
     env.Append(LINKFLAGS=["/SUBSYSTEM:CONSOLE", "/DEBUG"])
 env.Append(CXXFLAGS=compileFlags)
