@@ -15,11 +15,15 @@ Player::Player(std::string name, std::string uid, std::string fullUrl,
 
 void Player::start() { wrapper.connect(); }
 
-void Player::stop() { wrapper.close(); }
+void Player::stop() {
+    wrapper.close(); 
+    this->skeleton.stopUVThread();
+}
 
 void Player::onConnect() {
     this->skeleton.onStart();
     mHasStarted = true;
+    this->skeleton.startUVThread();
 }
 
 void Player::beginMove(double tx, double ty) {
