@@ -6,8 +6,6 @@
 
 #include "nlohmann/json.hpp"
 
-#include "game/Player.hpp"
-#include "game/PlayerSkeleton.hpp"
 #include "meta/Typedefs.hpp"
 #include "movement/MapProcessing.hpp"
 #include "objects/GameData.hpp"
@@ -28,7 +26,8 @@
 #include <ixwebsocket/IXWebSocket.h>
 
 namespace advland {
-
+class Player;
+class PlayerSkeleton;
 class AdvLandClient {
 private:
     static auto inline const mLogger = spdlog::stdout_color_mt("AdvLandClient");
@@ -72,41 +71,19 @@ public:
     AdvLandClient(const nlohmann::json& email, const nlohmann::json& password);
     virtual ~AdvLandClient();
 
-    void addPlayer(std::string name, Server& server, PlayerSkeleton& skeleton) {
-        for (auto& [id, username] : characters) {
-            if (username == name) {
-                std::shared_ptr<Player> bot =
-                    std::make_shared<Player>(username, id, server.getIp() + ":" + std::to_string(server.getPort()),
-                                             std::make_pair(server.getRegion(), server.getName()), *this, skeleton);
-                this->bots.push_back(bot);
-                skeleton.injectPlayer(bot); // Inject the player into the skeleton. Might be better to do in onConnect
-                return;
-            }
-        }
-    }
+    void addPlayer(const std::string& name, Server& server, PlayerSkeleton& skeleton);
 
     /**
      * Starts the bot in blocking mode. What this implies for you as the developer is that you don't need to manually
      * keep the main thread alive. Note that any code placed after this function will not be called until the bot shuts
      * down
      */
-    void startBlocking() {
-        for (auto& player : bots) {
-            player->start();
-        }
-        processInternals();
-    }
-
+    void startBlocking();
     /**
      * Starts the bot async. If you use this, make sure you keep the main thread busy. A while loop with an execution
      * timeout and a decent exit condition is usually enough.
      */
-    void startAsync() {
-        for (auto& player : bots) {
-            player->start();
-        }
-        this->runner = std::thread(std::bind(&AdvLandClient::processInternals, this));
-    }
+    void startAsync();
 
     ServerCluster* getServerCluster(std::string identifier);
     Server* getServerInCluster(std::string clusterIdentifier, std::string serverIdentifier);

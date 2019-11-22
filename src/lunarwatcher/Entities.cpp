@@ -49,6 +49,7 @@ PROXY_GETTER_IMPL(Player, "range", Range, int)
 PROXY_GETTER_IMPL(Player, "ctype", CType, std::string)
 PROXY_GETTER_IMPL(Player, "speed", Speed, int)
 PROXY_GETTER_IMPL(Player, "gold", Gold, long long)
+PROXY_GETTER_IMPL(Player, "id", Id, std::string)
 
 SocketWrapper& Player::getSocket() { return wrapper; }
 

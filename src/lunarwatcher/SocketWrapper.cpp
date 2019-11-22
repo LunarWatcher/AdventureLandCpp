@@ -1,5 +1,7 @@
 #include "net/SocketWrapper.hpp"
 #include "AdvLand.hpp"
+#include "game/Player.hpp"
+#include "game/PlayerSkeleton.hpp"
 #include "math/Logic.hpp"
 #include "utils/ParsingUtils.hpp"
 #include <algorithm>
@@ -192,7 +194,8 @@ void SocketWrapper::initializeSystem() {
     });
     
     this->registerEventCallback("game_error", [this](const nlohmann::json& event) {
-        mLogger->error(event.dump()); 
+        mLogger->error(event.dump());
+        // TODO: Check for "Failed: wait_N_seconds"
     });
     
     this->registerEventCallback("disconnect", [this](const nlohmann::json& event) {
@@ -396,7 +399,7 @@ void SocketWrapper::dispatchEvent(std::string eventName, const nlohmann::json& e
 void SocketWrapper::deleteEntities() {
 
     for (auto it = entities.begin(); it != entities.end();) {
-        if (getOrElse((*it).second, "dead", false) || getOrElse((*it).second, "rip", false)) {
+        if (getOrElse((*it).second, "dead", false) || getOrElse((*it).second, "rip", false) || (*it).second.is_null()) {
             it = entities.erase(it);
         } else
             ++it;

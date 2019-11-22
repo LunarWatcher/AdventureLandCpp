@@ -1,7 +1,6 @@
 #ifndef LUNARWATCHER_ADVLAND_PLAYER
 #define LUNARWATCHER_ADVLAND_PLAYER
 
-#include "PlayerSkeleton.hpp"
 #include "lunarwatcher/net/SocketWrapper.hpp"
 #include <type_traits>
 #include <nlohmann/json.hpp>
@@ -56,15 +55,8 @@ public:
     }
     bool isAlive() { return data.value("rip", false) == false; }
     bool hasStarted() { return mHasStarted; }
-#if USE_STATIC_ENTITIES
-    static 
-#endif
     std::map<std::string, nlohmann::json>& getEntities() { 
-#if USE_STATIC_ENTITIES
-        return SocketWrapper::getEntities();
-#else
         return wrapper.getEntities();
-#endif
     }
 
     void beginMove(double tx, double ty);
@@ -87,7 +79,8 @@ public:
     PROXY_GETTER(CType, std::string)
     PROXY_GETTER(Speed, int)   
     PROXY_GETTER(Gold, long long)
-  
+    PROXY_GETTER(Id, std::string)
+
     const std::string& getName() { return name; }
     const nlohmann::json& getInventory() {
         return data["items"];

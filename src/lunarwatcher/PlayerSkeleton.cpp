@@ -1,6 +1,6 @@
-#include "game/PlayerSkeleton.hpp"
 #include "AdvLand.hpp"
 #include "game/Player.hpp"
+#include "game/PlayerSkeleton.hpp"
 #include "math/Logic.hpp"
 #include "utils/ParsingUtils.hpp"
 #include <chrono>
@@ -24,7 +24,7 @@ void PlayerSkeleton::move(double x, double y) {
      * server-sided position checking, which means raw socket calls can be used to
      * move to invalid positions, such as at the top of a mountain.
      * Doing so can result in the character ending up in jail (I think - don't
-     * quote me on that).
+     * quote me on that) and/or worse.
      */
     character->beginMove(x, y);
     character->getSocket().emit("move", {{"x", character->getX()},
@@ -543,6 +543,8 @@ std::vector<nlohmann::json> PlayerSkeleton::getNearbyHostiles(unsigned long long
 
     for (auto& [id, entity] : character->getEntities()) {
         if (!entity.is_null()) {
+            if (entity["x"].is_null())
+                mSkeletonLogger->info(entity.dump());
             if (MovementMath::pythagoras(entity["x"].get<int>(), entity["y"].get<int>(), character->getX(),
                                          character->getY()) > range)
                 continue;
@@ -571,13 +573,23 @@ nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) 
 
     for (auto& [id, entity] : entities) {
         if (entity.is_null()) continue;
-        if (entity.value("type", "") != "monster" ||
+        if (entity.find("type") == entity.end() || entity["type"].is_null() || entity.value("type", "") != "monster" ||
             (attribs.find("type") != attribs.end() && entity.value("mtype", "") != attribs["type"]) ||
             (attribs.find("min_xp") != attribs.end() && entity.value("xp", 0) < int(attribs["min_xp"])) ||
             (attribs.find("max_att") != attribs.end() && entity.value("attack", 0) > int(attribs["attack"])))
             continue;
         if (entity.value("dead", false) == true || entity.value("rip", false) == true) continue;
-
+        if (attribs.value<nlohmann::json>("blacklist", nullptr) != nullptr) {
+            auto& list = attribs["blacklist"];
+            for (auto& entry : list) {
+                std::string bId = entry.get<std::string>();
+                if (id == bId) goto skip;
+            }
+            goto out;
+skip:
+            continue;
+        }
+out:
         double dist =
             MovementMath::pythagoras(character->getX(), character->getY(), double(entity["x"]), double(entity["y"]));
 
@@ -601,7 +613,7 @@ std::string PlayerSkeleton::getIdFromJsonOrDefault(const nlohmann::json& entity)
 }
 
 nlohmann::json PlayerSkeleton::getTarget() {
-    if (character->data.find("ctarget") != character->data.end()) {
+    if (character->data.find("ctarget") != character->data.end() && !character->data["ctarget"].is_null()) {
         if (character->getEntities().find(character->data["ctarget"]) != character->getEntities().end()) {
             nlohmann::json& json = character->getEntities()[character->data["ctarget"]];
             if (getOrElse(json, "dead", false) || int(json["hp"]) <= 0) {
@@ -617,20 +629,26 @@ nlohmann::json PlayerSkeleton::getTarget() {
 void PlayerSkeleton::changeTarget(const nlohmann::json& entity) {
     if (entity.is_null()) {
         character->data["ctarget"] = nullptr;
-        sendTargetLogic(nullptr);
+        sendTargetLogic(entity);
+        lastIdSent = "-1";
+        return;
     } else if (entity.find("id") == entity.end())
         return;
-    if (entity["id"] != lastIdSent) {
+    else if (entity["id"] != lastIdSent) {
         character->data["ctarget"] = entity["id"];
         sendTargetLogic(entity);
     }
 }
 
 void PlayerSkeleton::sendTargetLogic(const nlohmann::json& target) {
-    if (target.is_null()) {
+    if (target.is_null() || target == nullptr) {
         character->getSocket().emit("target", {{"id", ""}});
         lastIdSent = "";
     } else {
+        if (target["id"].is_null()) {
+            mSkeletonLogger->info("Dump entity: {}", target.dump());
+            throw "Fail!";
+        }
         character->getSocket().emit("target", {{"id", target["id"].get<std::string>()}});
         lastIdSent = target["id"];
     }
@@ -711,6 +729,21 @@ void PlayerSkeleton::processInternals() {
 
         cDelta -= 50;
     }
+
+}
+
+const nlohmann::json PlayerSkeleton::getTargetOf(const nlohmann::json& entity) {
+    if (entity.is_null())
+        return nullptr;
+    if (entity.find("target") == entity.end())
+        return nullptr;
+    const nlohmann::json target = entity["target"];
+    if (target.is_null()) {
+        return nullptr;
+    }
+
+    const nlohmann::json attempt = character->getEntities()[target.get<std::string>()];
+    return attempt;
 }
 
 std::shared_ptr<uvw::TimerHandle> PlayerSkeleton::setTimeout(LoopHelper::TimerCallback callback, int timeout) {

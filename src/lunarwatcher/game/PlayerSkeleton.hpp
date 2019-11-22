@@ -190,6 +190,8 @@ public:
     const GameData& getGameData();
     SocketWrapper& getSocket();
 
+    const nlohmann::json getTargetOf(const nlohmann::json& entity);
+
     bool isPvp();
 
     // Looping

@@ -1,12 +1,14 @@
 #include "AdvLand.hpp"
+#include "game/Player.hpp"
+#include "game/PlayerSkeleton.hpp"
 #include "math/Logic.hpp"
 #include "meta/Exceptions.hpp"
 #include "meta/Typedefs.hpp"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
-#include <regex>
 #include "utils/ParsingUtils.hpp"
 #include <fstream>
+#include <regex>
 
 namespace advland {
 bool AdvLandClient::running = true;
@@ -16,16 +18,18 @@ AdvLandClient::AdvLandClient() : AdvLandClient("credentials.json") {}
 AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) {
     std::ifstream creds(credentialFileLocation);
     if (!creds) {
-        mLogger->error("Failed to find credentials.json. To pass the email and password directly, please use AdvLandClient(std::string, std::string).");
-        mLogger->error("If you intended to use this function, make sure the file exists in the current working directory. If it does exist, make sure the permission are correct.");
+        mLogger->error("Failed to find credentials.json. To pass the email and password directly, please use "
+                       "AdvLandClient(std::string, std::string). [NOT RECOMMENDED]");
+        mLogger->error("If you intended to use this function, make sure the file exists in the current working "
+                       "directory. If it does exist, make sure the permission are correct.");
         throw IOException("Failed to find credentials");
     }
     nlohmann::json tmp;
     creds >> tmp;
-    construct(tmp["email"], tmp["password"]); 
+    construct(tmp["email"], tmp["password"]);
 }
 AdvLandClient::AdvLandClient(const nlohmann::json& email, const nlohmann::json& password) {
-    construct(email, password); 
+    construct(email, password);
 }
 
 void AdvLandClient::construct(const nlohmann::json& email, const nlohmann::json& password) {
@@ -39,9 +43,37 @@ void AdvLandClient::construct(const nlohmann::json& email, const nlohmann::json&
     mapProcessor.processMaps(data);
 }
 
-AdvLandClient::~AdvLandClient() { 
-    ix::uninitNetSystem(); 
+AdvLandClient::~AdvLandClient() {
+    ix::uninitNetSystem();
     runner.join();
+}
+
+void AdvLandClient::addPlayer(const std::string& name, Server& server, PlayerSkeleton& skeleton) {
+
+    for (auto& [id, username] : characters) {
+        if (username == name) {
+            std::shared_ptr<Player> bot =
+                std::make_shared<Player>(username, id, server.getIp() + ":" + std::to_string(server.getPort()),
+                                         std::make_pair(server.getRegion(), server.getName()), *this, skeleton);
+            this->bots.push_back(bot);
+            skeleton.injectPlayer(bot); // Inject the player into the skeleton. Might be better to do in onConnect
+            return;
+        }
+    }
+}
+
+void AdvLandClient::startBlocking() {
+    for (auto& player : bots) {
+        player->start();
+    }
+    processInternals();
+}
+
+void AdvLandClient::startAsync() {
+    for (auto& player : bots) {
+        player->start();
+    }
+    this->runner = std::thread(std::bind(&AdvLandClient::processInternals, this));
 }
 
 void AdvLandClient::login(const std::string& email, const std::string& password) {
@@ -53,7 +85,7 @@ void AdvLandClient::login(const std::string& email, const std::string& password)
         mLogger->error("Error received when attempting to connect: {}", r.error.message);
         throw LoginException("");
     }
-    
+
     int result = r.status_code;
     if (result != 200) {
         mLogger->info("Failed to connect: {}", result);
@@ -64,7 +96,9 @@ void AdvLandClient::login(const std::string& email, const std::string& password)
 
     // Prepares the request
     auto loginResponse = ::advland::Post(cpr::Url{"https://adventure.land/api/signup_or_login"},
-                cpr::Payload{{"method", "signup_or_login"}, {"arguments", "{\"email\":\"" + email + "\", \"password\": \"" + password + "\", \"only_login\": true}"}});
+                                         cpr::Payload{{"method", "signup_or_login"},
+                                                      {"arguments", "{\"email\":\"" + email + "\", \"password\": \"" +
+                                                                        password + "\", \"only_login\": true}"}});
     // Check for base login failure
     std::string& rawJson = loginResponse.text;
     if (rawJson.find("\"type\": \"ui_error\"") != std::string::npos) {
@@ -74,11 +108,10 @@ void AdvLandClient::login(const std::string& email, const std::string& password)
     auto& cookies = loginResponse.cookies;
     auto& auth = cookies["auth"];
     if (auth != "") {
-            mLogger->info("Login succeeded");
-            this->sessionCookie = auth;
-            this->userId = this->sessionCookie.substr(0, this->sessionCookie.find("-"));
-            return;
-        
+        mLogger->info("Login succeeded");
+        this->sessionCookie = auth;
+        this->userId = this->sessionCookie.substr(0, this->sessionCookie.find("-"));
+        return;
     }
 
     throw LoginException("Failed to find authentication key");
@@ -104,7 +137,7 @@ void AdvLandClient::collectGameData() {
     auto r = ::advland::Get(cpr::Url{"https://adventure.land/data.js"});
 
     if (r.status_code != 200) throw EndpointException("Failed to GET data.js");
-    
+
     std::string& rawJson = r.text;
     rawJson = rawJson.substr(6, rawJson.length() - 8);
     this->data = GameData(rawJson);
@@ -113,9 +146,9 @@ void AdvLandClient::collectGameData() {
 
 void AdvLandClient::collectCharacters() {
     mLogger->info("Collecting characters...");
-    auto r = ::advland::Post(cpr::Url{"https://adventure.land/api/servers_and_characters"}, 
-                cpr::Cookies{{"auth", this->sessionCookie}},
-                cpr::Payload{{"method", "servers_and_characters"}, {"arguments", "{}"}});
+    auto r = ::advland::Post(cpr::Url{"https://adventure.land/api/servers_and_characters"},
+                             cpr::Cookies{{"auth", this->sessionCookie}},
+                             cpr::Payload{{"method", "servers_and_characters"}, {"arguments", "{}"}});
     std::string& rawData = r.text;
     if (r.status_code != 200 || rawData.find("\"args\": [\"Not logged in.\"]") != std::string::npos) {
         throw EndpointException("Failed to retrieve characters and servers (login issue): " +
@@ -137,7 +170,7 @@ void AdvLandClient::collectCharacters() {
 }
 
 void AdvLandClient::collectServers() {
-    
+
     cpr::Response response = this->postRequest("get_servers", "{}", true);
     std::string& rawData = response.text;
 
@@ -183,8 +216,8 @@ void AdvLandClient::collectServers() {
     }
 }
 
-cpr::Response AdvLandClient::postRequest(std::string apiEndpoint,
-                                std::string arguments, bool auth, const cpr::Payload& formData) {
+cpr::Response AdvLandClient::postRequest(std::string apiEndpoint, std::string arguments, bool auth,
+                                         const cpr::Payload& formData) {
     cpr::Cookies cookies = {};
     if (auth) cookies = cpr::Cookies{{"auth", this->sessionCookie}};
     cpr::Payload primaryPayload = {{"method", apiEndpoint}, {"arguments", arguments}};
@@ -244,9 +277,10 @@ void AdvLandClient::dispatchLocalCm(std::string to, const nlohmann::json& messag
     mLogger->error("Failed to find {} in the local client.", to);
 }
 
-void AdvLandClient::kill() { 
-    AdvLandClient::running = false; 
-    for (auto& player : bots) player->stop();
+void AdvLandClient::kill() {
+    AdvLandClient::running = false;
+    for (auto& player : bots)
+        player->stop();
 }
 
 bool AdvLandClient::canRun() { return running; }
