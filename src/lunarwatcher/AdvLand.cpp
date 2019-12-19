@@ -30,6 +30,7 @@ AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) {
 }
 AdvLandClient::AdvLandClient(const nlohmann::json& email, const nlohmann::json& password) {
     construct(email, password);
+    
 }
 
 void AdvLandClient::construct(const nlohmann::json& email, const nlohmann::json& password) {

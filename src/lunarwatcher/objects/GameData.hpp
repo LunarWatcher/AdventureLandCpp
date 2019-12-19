@@ -3,6 +3,7 @@
 #include "nlohmann/json.hpp"
 
 namespace advland {
+
 class GameData {
 private:
     nlohmann::json data;
@@ -13,10 +14,12 @@ public:
     GameData(std::string& rawJson) : data(nlohmann::json::parse(rawJson)) {}
     GameData(const GameData& old) : data(old.data) {}
     
-    const nlohmann::json& getData() { return data; }
+    const nlohmann::json& getData() const { return data; }
 
-    const nlohmann::json& operator[](std::string key) const { return data[key]; }
+    const nlohmann::json& operator[](const std::string& key) const { return data[key]; }
+    const nlohmann::json& at(const std::string& key) const { return data[key]; }
 };
+
 } // namespace advland
 
 #endif

@@ -1,6 +1,6 @@
+#include "game/PlayerSkeleton.hpp"
 #include "AdvLand.hpp"
 #include "game/Player.hpp"
-#include "game/PlayerSkeleton.hpp"
 #include "math/Logic.hpp"
 #include "utils/ParsingUtils.hpp"
 #include <chrono>
@@ -38,8 +38,7 @@ void PlayerSkeleton::initSmartMove() {
     killSwitch = false;
     if (smart.isSearching()) smart.stop(true);
     // This shouldn't:tm: throw if the job already has stopped
-    if (smartMoveHandler != nullptr)
-        smartMoveHandler->cancel();
+    if (smartMoveHandler != nullptr) smartMoveHandler->cancel();
     smartMoveHandler = createJob(std::bind(&PlayerSkeleton::dijkstraProcessor, this));
 }
 
@@ -50,7 +49,7 @@ void PlayerSkeleton::dijkstraProcessor() {
     if (!killSwitch) return;
     if (!smart.hasMore()) {
         smart.deinit();
-        mSkeletonLogger->info("Path not found :/");
+        mSkeletonLogger->info("[ {} ] Path not found :/", character->getName());
         return;
     }
     nlohmann::json target = nullptr;
@@ -70,7 +69,6 @@ void PlayerSkeleton::dijkstraProcessor() {
             if (MovementMath::pythagoras(peek["x"].get<int>(), peek["y"].get<int>(), character->getX(),
                                          character->getY()) < 75) {
                 transport(peek["map"].get<std::string>(), peek["s"].get<int>());
-                mSkeletonLogger->info(peek.dump());
                 while (peek["map"].get<std::string>() != character->getMap()) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
@@ -333,20 +331,27 @@ void PlayerSkeleton::useSkill(const std::string& ability, const nlohmann::json& 
 }
 
 void PlayerSkeleton::useItem(const std::string& item) {
+
     auto& itemData = character->getClient().getData()["items"];
     for (unsigned long long i = 0; i < character->getInventory().size(); i++) {
         const nlohmann::json& iItem = character->getInventory()[i];
         if (iItem.is_null()) continue;
-        if (iItem.find("name") == iItem.end() || !iItem["name"].is_string()) continue;
-        auto& iItemData = itemData[iItem["name"].get<std::string>()];
-        if (iItemData.find("gives") != iItemData.end()) {
-            auto& gives = iItemData["gives"];
-            for (auto& effect : gives) {
-                if (effect[0] == item) {
-                    character->getSocket().emit("equip", {{"num", i}});
-                    return;
+        if (iItem.find("name") == iItem.end() || !iItem.at("name").is_string()) continue;
+        try {
+            auto& iItemData = itemData[iItem.at("name").get<std::string>()];
+            if (!iItemData.is_null() && iItemData.find("gives") != iItemData.end()) {
+                auto& gives = iItemData.at("gives");
+                for (auto& effect : gives) {
+                    if (effect[0] == item) {
+                        character->getSocket().emit("equip", {{"num", i}});
+                        return;
+                    }
                 }
             }
+        } catch (...) {
+            mSkeletonLogger->error("Exception thrown: {}", iItem.dump());
+            
+            throw;
         }
     }
     character->getSocket().emit("use", {{"item", item}});
@@ -505,17 +510,17 @@ void PlayerSkeleton::heal(nlohmann::json& entity) {
         character->getSocket().emit("heal", {{"id", entity.get<std::string>()}});
 }
 
-void PlayerSkeleton::sendPartyInvite(std::string& name, bool isRequest) {
+void PlayerSkeleton::sendPartyInvite(const std::string& name, bool isRequest) {
     character->getSocket().emit("party", {{"event", isRequest ? "request" : "invite"}, {"name", name}});
 }
 
-void PlayerSkeleton::sendPartyRequest(std::string& name) { sendPartyInvite(name, true); }
+void PlayerSkeleton::sendPartyRequest(const std::string& name) { sendPartyInvite(name, true); }
 
-void PlayerSkeleton::acceptPartyInvite(std::string& name) {
+void PlayerSkeleton::acceptPartyInvite(const std::string& name) {
     character->getSocket().emit("party", {{"event", "accept"}, {"name", name}});
 }
 
-void PlayerSkeleton::acceptPartyRequest(std::string& name) {
+void PlayerSkeleton::acceptPartyRequest(const std::string& name) {
     character->getSocket().emit("party", {{"event", "raccept"}, {"name", name}});
 }
 
@@ -536,15 +541,15 @@ void PlayerSkeleton::leaveParty() { character->getSocket().emit("party", {{"even
 
 void PlayerSkeleton::respawn() { character->getSocket().emit("respawn"); }
 
-std::vector<nlohmann::json> PlayerSkeleton::getNearbyHostiles(unsigned long long limit, const std::string& type, int range) {
+std::vector<nlohmann::json> PlayerSkeleton::getNearbyHostiles(unsigned long long limit, const std::string& type,
+                                                              int range) {
     if (limit == 0) return {};
     std::vector<nlohmann::json> entities;
     bool includePlayers = isPvp();
 
     for (auto& [id, entity] : character->getEntities()) {
         if (!entity.is_null()) {
-            if (entity["x"].is_null())
-                mSkeletonLogger->info(entity.dump());
+            if (entity["x"].is_null()) mSkeletonLogger->info(entity.dump());
             if (MovementMath::pythagoras(entity["x"].get<int>(), entity["y"].get<int>(), character->getX(),
                                          character->getY()) > range)
                 continue;
@@ -586,10 +591,10 @@ nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) 
                 if (id == bId) goto skip;
             }
             goto out;
-skip:
+        skip:
             continue;
         }
-out:
+    out:
         double dist =
             MovementMath::pythagoras(character->getX(), character->getY(), double(entity["x"]), double(entity["y"]));
 
@@ -729,14 +734,11 @@ void PlayerSkeleton::processInternals() {
 
         cDelta -= 50;
     }
-
 }
 
 const nlohmann::json PlayerSkeleton::getTargetOf(const nlohmann::json& entity) {
-    if (entity.is_null())
-        return nullptr;
-    if (entity.find("target") == entity.end())
-        return nullptr;
+    if (entity.is_null()) return nullptr;
+    if (entity.find("target") == entity.end()) return nullptr;
     const nlohmann::json target = entity["target"];
     if (target.is_null()) {
         return nullptr;

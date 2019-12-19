@@ -117,6 +117,7 @@ template <typename... Ts> cpr::Response Get(Ts&&... ts) {
     // TODO: Figure out Windows cert verification
     session.SetVerifySsl(false);
 #endif
+    
     return session.Get();
 }
 

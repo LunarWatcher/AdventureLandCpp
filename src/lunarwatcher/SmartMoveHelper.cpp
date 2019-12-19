@@ -30,10 +30,10 @@ std::string SmartMoveHelper::getTargetMap() { return map; }
 
 std::string SmartMoveHelper::getProcessableMap() {
     if (mapPath.size() == 0) return map;
-    return mapPath[internalOffset];
+    return mapPath.at(internalOffset);
 }
 
-std::string SmartMoveHelper::getNextProcessableMap() { return mapPath[internalOffset + 1]; }
+std::string SmartMoveHelper::getNextProcessableMap() { return mapPath.at(internalOffset + 1); }
 
 void SmartMoveHelper::bumpOffset() {
     if (mapPath.size() > 0) internalOffset++;
@@ -54,12 +54,12 @@ int& SmartMoveHelper::getTargetX() { return x; }
 int& SmartMoveHelper::getTargetY() { return y; }
 
 nlohmann::json SmartMoveHelper::getAndRemoveFirst() {
-    nlohmann::json data = checkpoints[0];
+    nlohmann::json data = checkpoints.at(0);
     checkpoints.erase(checkpoints.begin());
     return data;
 }
 
-nlohmann::json& SmartMoveHelper::peekNext() { return checkpoints[0]; }
+nlohmann::json& SmartMoveHelper::peekNext() { return checkpoints.at(0); }
 
 void SmartMoveHelper::ignoreFirst() { checkpoints.erase(checkpoints.begin()); }
 
@@ -90,7 +90,7 @@ std::optional<std::pair<int, int>> SmartMoveHelper::getLandingCoords() {
 bool SmartMoveHelper::hasMore() { return checkpoints.size() > 0; }
 bool SmartMoveHelper::isNextTransport() {
     if (checkpoints.size() == 0) return false;
-    return getOrElse(checkpoints[0], "transport", false) == true;
+    return getOrElse(checkpoints.at(0), "transport", false) == true;
 }
 
 bool SmartMoveHelper::isSearching() { return searching; }

@@ -48,6 +48,10 @@ public:
                 std::pow(x1 - x2, 2) +
                 std::pow(y1 - y2, 2));
     }
+
+    static double manhatten(const std::pair<int, int>& A, const std::pair<int, int>& B) {
+        return std::abs(A.first - B.first) + std::abs(A.second - B.second);
+    }
 };
 
 }

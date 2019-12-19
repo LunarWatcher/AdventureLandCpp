@@ -52,6 +52,9 @@ protected:
 
     void processInternals();
 public:
+
+
+
     ~PlayerSkeleton() {
         if (uvThread.joinable())
             uvThread.join();
@@ -111,10 +114,10 @@ public:
     void partySay(const std::string& message);
     void sendPm(const std::string& message, const std::string& user);
 
-    void sendPartyInvite(std::string& name, bool isRequest = false);
-    void sendPartyRequest(std::string& name);
-    void acceptPartyInvite(std::string& name);
-    void acceptPartyRequest(std::string& name);
+    void sendPartyInvite(const std::string& name, bool isRequest = false);
+    void sendPartyRequest(const std::string& name);
+    void acceptPartyInvite(const std::string& name);
+    void acceptPartyRequest(const std::string& name);
     void leaveParty();
 
     /**
@@ -194,6 +197,11 @@ public:
 
     bool isPvp();
 
+    /**
+     * Returns whether the skeleton is running or not, defined by the main uv loop and the websocket callbacks.
+     * This can be used by other characters to determine status of other characters, to i.e. send party invites.
+     */
+    bool isRunning() { return running; }
     // Looping
     /**
      * Sets a timeout. 

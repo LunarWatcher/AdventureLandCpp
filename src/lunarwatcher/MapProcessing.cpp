@@ -5,11 +5,14 @@
 #include "utils/Hashing.hpp"
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <map>
+#include <queue>
 #include <string>
 #include <unordered_map>
 #include "game/PlayerSkeleton.hpp"
 #include <limits.h>
+#include "utils/MapUtils.hpp"
 
 namespace advland {
 
@@ -18,7 +21,9 @@ namespace defs {
     const double EPS = 1e-8;
     const double REPS = std::numeric_limits<double>::epsilon();
 
-    const std::map<std::string, int> base = {{"h", 8}, {"v", 7}, {"vn", 2}};
+    // NOTE: The real base is 8, 7, 2, but because of a  bug for the can_move method, the values have been cut in half.
+    // If this doesn't fix all the edge cases, remove the bound check.
+    const std::map<std::string, int> base = {{"h", 4}, {"v", 3}, {"vn", 1}};
     const std::vector<std::vector<int>> hitbox = {{-base.at("h"), base.at("vn")},
                                                   {base.at("h"), base.at("vn")},
                                                   {-base.at("h"), -base.at("v")},
@@ -27,20 +32,20 @@ namespace defs {
 } // namespace defs
 
 void MapProcessor::box(double x1, double y1, double x2, double y2, std::vector<bool>& map, int xSize) {
-    for (double x = x1; x < x2; x++)
-        for (double y = y1; y < y2; y++) {
+    for (double x = x1; x <= x2; x++)
+        for (double y = y1; y <= y2; y++) {
             unsigned long long tmp = xSize * y + x;
-            if (tmp < map.size() && map[tmp] == 0) {
-                map[tmp] = 1;
-            }
+            if (tmp < map.size())
+                map.at(tmp) = 1;
+            
         }
 }
 
 int MapProcessor::bSearch(const nlohmann::json& lines, int search) {
     int high = 0, low = lines.size() - 1;
     while (high < low - 1) {
-        int m = std::floor((low + high) / 2.0);
-        if (lines[m][0] < search) {
+        int m = std::floor(double(low + high) / 2.0);
+        if (lines.at(m).at(0) < search) {
             high = m;
         } else
             low = m - 1;
@@ -56,13 +61,13 @@ bool MapProcessor::canMove(const double& x1, const double& y1, const double& x2,
     double X = std::max(x1, x2);
     double Y = std::max(y1, y2);
 
-    const auto& xLines = geom["x_lines"];
-    const auto& yLines = geom["y_lines"];
+    const auto& xLines = geom.at("x_lines");
+    const auto& yLines = geom.at("y_lines");
 
     if (!trigger) {
         for (const auto& i : defs::hitbox) {
-            double hitboxX = i[0];
-            double hitboxY = i[1];
+            double hitboxX = i.at(0);
+            double hitboxY = i.at(1);
             if (!canMove(x1 + hitboxX, y1 + hitboxY, x2 + hitboxX, y2 + hitboxY, geom, true)) {
                 return false;
             }
@@ -92,40 +97,45 @@ bool MapProcessor::canMove(const double& x1, const double& y1, const double& x2,
     }
 
     for (unsigned long long i = bSearch(xLines, x); i < xLines.size(); i++) {
-        if (i > xLines.size())
+        if (i >= xLines.size())
             throw "Fail";
-        auto& line = xLines[i];
-        if (line[0].get<double>() == x2 &&
-            ((line[1].get<double>() <= y2 && line[2].get<double>() >= y2) ||
-             (line[0].get<double>() == x1 && y1 <= line[1].get<double>() && y2 > line[1].get<double>()))) {
+        auto& line = xLines.at(i);
+        if (line.at(0).get<double>() == x2 &&
+            ((line.at(1).get<double>() <= y2 && line.at(2).get<double>() >= y2) ||
+             (line.at(0).get<double>() == x1 && y1 <= line.at(1).get<double>() && y2 > line.at(1).get<double>()))) {
             return false;
         }
 
-        if (x > line[0].get<double>()) continue;
-        if (X < line[0].get<double>()) break;
+        if (x > line.at(0).get<double>()) continue;
+        if (X < line.at(0).get<double>()) break;
 
         double under = x2 - x1 + defs::REPS;
-        double q = y1 + (y2 - y1) * (line[0].get<double>() - x1) / (under);
-        if (!(line[1].get<double>() - defs::EPS <= q && q <= line[2].get<double>() + defs::EPS)) {
+        if (under == 0)
+            throw std::runtime_error("Blocked division by 0");
+        double q = y1 + (y2 - y1) * (line.at(0).get<double>() - x1) / (under);
+        if (!(line.at(1).get<double>() - defs::EPS <= q && q <= line.at(2).get<double>() + defs::EPS)) {
             continue;
         }
         return false;
     }
 
     for (unsigned long long i = bSearch(yLines, y); i < yLines.size(); i++) {
-        if (i > yLines.size()) throw "Fail";
-        auto& line = yLines[i];
-        if (line[0].get<double>() == y2 &&
-            ((line[1].get<double>() <= x2 && line[2].get<double>() >= x2) ||
-             (line[0].get<double>() == y1 && x1 <= line[1].get<double>() && x2 >= line[1].get<double>()))) {
+        if (i >= yLines.size()) throw "Fail";
+        auto& line = yLines.at(i);
+        if (line.at(0).get<double>() == y2 &&
+            ((line.at(1).get<double>() <= x2 && line.at(2).get<double>() >= x2) ||
+             (line.at(0).get<double>() == y1 && x1 <= line.at(1).get<double>() && x2 >= line.at(1).get<double>()))) {
             return false;
         }
-        if (y > line[0].get<double>()) continue;
-        if (Y < line[0].get<double>()) break;
+        if (y > line.at(0).get<double>()) continue;
+        if (Y < line.at(0).get<double>()) break;
 
         double under = y2 - y1 + defs::REPS;
-        double q = x1 + (x2 - x1) * (line[0].get<double>() - y1) / (under);
-        if (!(line[1].get<double>() - defs::EPS <= q && q <= line[2].get<double>() + defs::EPS)) {
+        
+        if (under == 0)
+            throw std::runtime_error("Blocked division by 0");
+        double q = x1 + (x2 - x1) * (line.at(0).get<double>() - y1) / (under);
+        if (!(line.at(1).get<double>() - defs::EPS <= q && q <= line.at(2).get<double>() + defs::EPS)) {
             continue;
         }
 
@@ -148,24 +158,24 @@ unsigned long long MapProcessor::convertPosToMapIndex(const double& x, const dou
 void MapProcessor::processMaps(const GameData& data) {
     static std::map<std::string, int> base = {{"h", 8}, {"v", 7}, {"vn", 2}};
     mLogger->info("Preprocessing maps...");
-    for (auto& [mapName, mapData] : data["maps"].items()) {
-        if (mapData.find("ignore") != mapData.end() && mapData["ignore"] == true) {
+    for (auto& [mapName, mapData] : data.at("maps").items()) {
+        if (mapData.find("ignore") != mapData.end() && mapData.at("ignore") == true) {
             mLogger->info("Ignored map: {}", mapName);
             continue;
         }
-        if (mapData.find("no_bounds") != mapData.end() && mapData["no_bounds"] == true) {
+        if (mapData.find("no_bounds") != mapData.end() && mapData.at("no_bounds") == true) {
             mLogger->info("Ignored boundless map: {}", mapName);
             continue;
         }
         mLogger->info("Processing {}...", mapName);
-        auto& geom = data["geometry"][mapName];
-        auto& xLines = geom["x_lines"]; // [x, y, endY]
-        auto& yLines = geom["y_lines"]; // [y. x, endX]
+        auto& geom = data.at("geometry").at(mapName);
+        auto& xLines = geom.at("x_lines"); // [x, y, endY]
+        auto& yLines = geom.at("y_lines"); // [y. x, endX]
 
-        double minX = geom["min_x"].get<double>();
-        double minY = geom["min_y"].get<double>();
-        double maxX = geom["max_x"].get<double>();
-        double maxY = geom["max_y"].get<double>();
+        double minX = geom.at("min_x").get<double>();
+        double minY = geom.at("min_y").get<double>();
+        double maxX = geom.at("max_x").get<double>();
+        double maxY = geom.at("max_y").get<double>();
 
         double xSize = maxX - minX; // divided by boxSize if boxSize != 1
         double ySize = maxY - minY + 50;
@@ -173,41 +183,41 @@ void MapProcessor::processMaps(const GameData& data) {
         std::vector<bool> map;
         map.resize(xSize * ySize, 0);
         for (auto& line : xLines) {
-            double x = line[0].get<double>() - minX;
-            double yTop = line[1].get<double>() - minY;
-            double yBot = line[2].get<double>() - minY;
+            double x = line.at(0).get<double>() - minX;
+            double yTop = line.at(1).get<double>() - minY;
+            double yBot = line.at(2).get<double>() - minY;
 
-            double x1 = x - base["h"] - 1; // 1 = padding
-            double y1 = yTop - base["vn"] - 1;
-            double x2 = x + base["h"] + 1;
-            double y2 = yBot + base["v"] + 1;
+            double x1 = x - base.at("h") - 1; // 1 = padding
+            double y1 = yTop - base.at("vn") - 1;
+            double x2 = x + base.at("h") + 1;
+            double y2 = yBot + base.at("v") + 1;
             box(x1, y1, x2, y2, map, xSize);
         }
 
         for (auto& line : yLines) {
-            double y = line[0].get<double>() - minY;
-            double xLeft = line[1].get<double>() - minX;
-            double xRight = line[2].get<double>() - minX;
+            double y = line.at(0).get<double>() - minY;
+            double xLeft = line.at(1).get<double>() - minX;
+            double xRight = line.at(2).get<double>() - minX;
 
-            double x1 = xLeft - base["h"] - 1; // 1 = padding
-            double y1 = y - base["vn"] - 1;
-            double x2 = xRight + base["h"] + 1;
-            double y2 = y + base["v"] + 1;
+            double x1 = xLeft - base.at("h") - 1; // 1 = padding
+            double y1 = y - base.at("vn") - 1;
+            double x2 = xRight + base.at("h") + 1;
+            double y2 = y + base.at("v") + 1;
             box(x1, y1, x2, y2, map, xSize);
         }
         std::vector<Door> mapDoors;
 
         if (mapData.find("doors") != mapData.end()) {
-            auto& doors = mapData["doors"];
+            auto& doors = mapData.at("doors");
             for (auto& door : doors) {
-                int spawn = door[5].get<int>();
-                auto& tData = data["maps"][door[4].get<std::string>()]["spawns"];
+                int spawn = door.at(5).get<int>();
+                auto& tData = data.at("maps").at(door.at(4).get<std::string>()).at("spawns");
 
-                int landingX = tData[spawn][0].get<int>();
-                int landingY = tData[spawn][1].get<int>();
-                std::string target = door[4].get<std::string>();
+                int landingX = tData.at(spawn).at(0).get<int>();
+                int landingY = tData.at(spawn).at(1).get<int>();
+                std::string target = door.at(4).get<std::string>();
 
-                Door d(door[0].get<int>(), door[1].get<int>(), {{target, std::pair{landingX, landingY}}}, {target},
+                Door d(door.at(0).get<int>(), door.at(1).get<int>(), {{target, std::pair{landingX, landingY}}}, {target},
                        false, {{target, spawn}});
                 mapDoors.push_back(d);
 
@@ -216,11 +226,11 @@ void MapProcessor::processMaps(const GameData& data) {
             }
         }
 
-        if (mapData.find("npcs") != mapData.end() && mapData["npcs"].size() > 0) {
-            for (auto& npc : mapData["npcs"]) {
-                if (npc["id"].get<std::string>() == "transporter") {
+        if (mapData.find("npcs") != mapData.end() && mapData.at("npcs").size() > 0) {
+            for (auto& npc : mapData.at("npcs")) {
+                if (npc.at("id").get<std::string>() == "transporter") {
                     std::vector<std::string> doorTargets;
-                    auto& places = data["npcs"]["transporter"]["places"];
+                    auto& places = data.at("npcs").at("transporter").at("places");
                     std::map<std::string, std::pair<int, int>> positions;
                     std::map<std::string, int> spawns;
 
@@ -229,16 +239,16 @@ void MapProcessor::processMaps(const GameData& data) {
                         if (place == mapName) continue;
                         if (std::find(ref.begin(), ref.end(), mapName) == ref.end()) ref.push_back(mapName);
 
-                        auto spawn = data["npcs"]["transporter"]["places"][place].get<int>();
-                        spawns[place] = spawn;
+                        auto spawn = data.at("npcs").at("transporter").at("places").at(place).get<int>();
+                        spawns["place"] = spawn;
 
-                        auto& spawns = data["maps"][place]["spawns"][spawn];
-                        positions[place] = std::make_pair(spawns[0], spawns[1]);
+                        auto& doorSpawns = data.at("maps").at(place).at("spawns").at(spawn);
+                        positions[place] = std::make_pair(doorSpawns.at(0), doorSpawns.at(1));
 
                         doorTargets.push_back(place);
                     }
-                    auto& position = npc["position"];
-                    Door d(position[0].get<int>(), position[1].get<int>(), positions, doorTargets, true, spawns);
+                    auto& position = npc.at("position");
+                    Door d(position.at(0).get<int>(), position.at(1).get<int>(), positions, doorTargets, true, spawns);
                     mapDoors.push_back(d);
 
                     break;
@@ -249,24 +259,25 @@ void MapProcessor::processMaps(const GameData& data) {
 
         maps[mapName] = Map{map, mapDoors, minX, minY, maxX, maxY, xSize, ySize, mapName};
     }
-
     mLogger->info("Maps processed.");
 }
 
 std::vector<std::pair<int, int>> MapProcessor::getAdjacentPixels(const double& x, const double& y, Map& map) {
-    static std::vector<std::vector<int>> moves = {{10, 0}, {0, 10}, {-10, 0}, {0, -10}};
+    const static std::vector<std::vector<int>> moves 
+        = {
+            {7, 0}, {0, 7}, 
+            {-7, 0}, {0, -7},
+            {7, 7}, {-7, -7},
+            {-7, 7}, {7, -7}
+        };
 
     std::vector<std::pair<int, int>> pos;
     for (auto& move : moves) {
-        int mx = x + move[0];
-        int my = y + move[1];
-        if (mx < map.getMinX() || mx > map.getMaxX() || my < map.getMinY() || my > map.getMaxY()) continue;
+        int mx = x + move.at(0);
+        int my = y + move.at(1);
 
-        unsigned long long idx = convertPosToMapIndex(mx, my, map.getMinX(), map.getMinY(), map.getXSize());
-
-        if (!map.getRawMapData()[idx]) {
-            pos.push_back(std::pair<int, int>(mx, my));
-        }
+        pos.push_back(std::pair<int, int>(mx, my));
+        
     }
 
     return pos;
@@ -275,7 +286,7 @@ std::vector<std::pair<int, int>> MapProcessor::getAdjacentPixels(const double& x
 bool MapProcessor::isTransportDestination(std::string target, GameData& data) {
     // Places is a map containing the destination key, and a value passed as s when using
     // the transport websocket call. I have no idea what the variable signifies.
-    auto& c = data["npcs"]["transporter"]["places"];
+    auto& c = data.at("npcs").at("transporter").at("places");
     return c.find(target) != c.end();
 }
 
@@ -299,9 +310,9 @@ std::optional<Door> MapProcessor::getDoorTo(std::string currMap, std::string des
     return {};
 }
 
-std::vector<std::pair<int, int>> MapProcessor::prunePath(std::vector<std::pair<int, int>> rawPath,
+std::vector<std::pair<int, int>> MapProcessor::prunePath(const std::vector<std::pair<int, int>>& rawPath,
                                                          const nlohmann::json& geom) {
-    auto& oldPos = rawPath[0];
+    auto oldPos = rawPath[0];
     if (rawPath.size() == 1) {
         // Safe-guard against short moves
         return {oldPos};
@@ -313,7 +324,8 @@ std::vector<std::pair<int, int>> MapProcessor::prunePath(std::vector<std::pair<i
         if (!canMove(oldPos.first, oldPos.second, currPos.first, currPos.second, geom)) {
             // Last moveable point
             auto& tmp = rawPath[i - 1];
-            if (tmp == oldPos) continue;
+            if (tmp == oldPos) 
+                throw std::runtime_error("Invalid move position: " + std::to_string(currPos.first) + "," + std::to_string(currPos.second));
 
             path.push_back(tmp);
             oldPos = tmp;
@@ -330,7 +342,8 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
     auto& character = player.getCharacter();
     if (smart.getTargetMap() == character->getMap() &&
         canMove(character->getX(), character->getY(), smart.getTargetX(), smart.getTargetY(),
-                player.getGameData()["geometry"][character->getMap()])) {
+                player.getGameData()["geometry"][character->getMap()]) 
+            ) {
         smart.pushNodes({std::make_pair(smart.getTargetX(), smart.getTargetY())});
         return true;
     }
@@ -347,7 +360,6 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
             rCurrPos = std::make_pair(landingCoords->first, landingCoords->second);
         } else if (character->getMap() == currMap)
             rCurrPos = std::make_pair(character->getX(), character->getY());
-
         std::optional<Door> door = std::nullopt;
         std::optional<std::string> targetMap = std::nullopt;
         std::optional<std::pair<int, int>> landingPosition = std::nullopt;
@@ -373,49 +385,35 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
 
         auto targetPos = std::pair<int, int>(x, y);
         auto currPos = std::pair<int, int>(rCurrPos);
-        std::unordered_map<std::pair<int, int>, bool, PairHash> visited;
-        std::vector<std::pair<int, int>> unvisited;
+        auto& map = this->maps[currMap];
 
-        auto& mapObj = maps[currMap];
-        const auto& geom = player.getCharacter()->getClient().getData()["geometry"][currMap];
+        PathDist start(currPos, 0);
+        PathDist end(targetPos, 0, true);
+        std::priority_queue<PathDist> unvisited;
+        std::map<std::pair<int, int>, float> costs;
+        std::map<std::pair<int, int>, std::pair<int, int>> paths;
+        unvisited.push(start);
+        const auto& geom = character->getClient().getData().at("geometry").at(currMap); 
+        while (!unvisited.empty()) {
+            PathDist currNode = unvisited.top();
 
-        // < <x, y>, <dist,
-        std::unordered_map<std::pair<int, int>, PathDist, PairHash> dists;
-
-        dists[currPos] = PathDist{0};
-        while (smart.canRun()) {
-
-            auto adjacentTiles = getAdjacentPixels(currPos.first, currPos.second, mapObj);
-            PathDist& d = dists[currPos];
-
-            for (auto& adjacent : adjacentTiles) {
-                if (visited.find(adjacent) == visited.end() &&
-                    std::find(unvisited.begin(), unvisited.end(), adjacent) == unvisited.end() &&
-                    canMove(double(currPos.first), double(currPos.second), double(adjacent.first),
-                            double(adjacent.second), geom)) {
-                    unvisited.push_back(adjacent);
-                    double dist = d.dist + std::sqrt(std::pow(currPos.first - adjacent.first, 2) +
-                                                     std::pow(currPos.second - adjacent.second, 2));
-                    if (dists.find(adjacent) == dists.end() || dist < dists[adjacent].dist)
-                        dists[adjacent] = PathDist{dist, currPos};
-                }
-            }
-
-            if (visited.size() > 0) unvisited.erase(unvisited.begin());
-            visited[currPos] = true;
-            // *currPos == *targetpos
-            if (MovementMath::pythagoras(currPos.first, currPos.second, targetPos.first, targetPos.second) <=
-                (door.has_value() && door->isTransporter() ? 60 : 20)) {
+            if (currNode == end) {
+                
+                auto pos = currNode.position;
                 std::vector<std::pair<int, int>> path;
-                auto& dist = dists[currPos];
-                while (dist.lastPosition.has_value()) {
-                    path.push_back(*dist.lastPosition);
-                    dist = dists[*dist.lastPosition];
-                }
-                std::reverse(path.begin(), path.end());
-                path.push_back(targetPos);
+                if (!end.door)
+                    path.push_back(end.position);
 
-                auto vec = prunePath(path, character->getClient().getData()["geometry"][currMap]);
+                while (!(pos == start.position)) {
+                    path.push_back(pos);
+                    pos = paths.at(pos); 
+
+                }
+
+                std::reverse(path.begin(), path.end());
+                if (path.size() == 0)
+                    throw std::runtime_error("Path is empty?");
+                auto vec = prunePath(path, geom);
                 smart.pushNodes(vec);
                 smart.bumpOffset();
                 if (door.has_value()) {
@@ -433,13 +431,27 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
                 }
                 return true;
             }
-            if (unvisited.size() == 0) {
-                mLogger->warn("Failed to find a path.");
-                return false;
-            }
-            currPos = (*unvisited.begin());
-        }
+            unvisited.pop();
+            auto nearby = getAdjacentPixels(currNode.position.first, currNode.position.second, map);
+            float hCost; 
 
+            for (auto& neighbor : nearby) {
+                if(!canMove(currNode.position.first, currNode.position.second, neighbor.first, neighbor.second, geom))
+                    continue;
+                float newCost = costs[currNode.position];
+
+                if (newCost < maps::get(costs, neighbor, std::numeric_limits<float>::infinity())) {
+                    hCost = MovementMath::pythagoras(neighbor.first, neighbor.second, end.position.first, end.position.second);
+                    float priority = newCost + hCost;
+                    unvisited.push(PathDist(neighbor, priority));
+
+                    costs[neighbor] = newCost;
+                    paths[neighbor] = currNode.position;
+                }
+            }
+
+        }
+        return false;
     } else {
         std::vector<std::string> path = doorDijkstra(currMap, smart.getTargetMap());
         if (path.size() == 0) {
@@ -463,8 +475,8 @@ std::vector<std::string> MapProcessor::doorDijkstra(std::string from, std::strin
     std::vector<std::string> unvisited;
     std::unordered_map<std::string, std::pair<int, std::string>> dists;
 
-    std::string& currPos = from;
-    dists[from] = std::make_pair(0, "");
+    std::string currPos = from;
+    dists["from"] = std::make_pair(0, "");
     std::vector<std::string> route = {to};
     // Dijkstra
     while (true) {
@@ -474,7 +486,7 @@ std::vector<std::string> MapProcessor::doorDijkstra(std::string from, std::strin
                 std::find(unvisited.begin(), unvisited.end(), pos) == unvisited.end()) {
                 unvisited.push_back(pos);
                 int dist = dists[currPos].first + 1;
-                if (dists.find(pos) == dists.end() || dist < dists[pos].first)
+                if (dists.find(pos) == dists.end() || dist < dists.at(pos).first)
                     dists[pos] = std::make_pair(dist, currPos);
             }
         }
@@ -484,20 +496,20 @@ std::vector<std::string> MapProcessor::doorDijkstra(std::string from, std::strin
         visited.push_back(currPos);
 
         if (currPos == to) {
-            auto prePos = dists[to];
+            auto prePos = dists.at(to);
 
             while (prePos.second != "") {
                 route.push_back(prePos.second);
-                prePos = dists[prePos.second];
+                prePos = dists.at(prePos.second);
             }
             std::reverse(route.begin(), route.end());
             return route;
         }
         if (unvisited.size() == 0) return {};
         std::sort(unvisited.begin(), unvisited.end(), [dists](std::string& one, std::string& two) mutable -> bool {
-            return (dists[one].first) < (dists[two].first);
+            return (dists.at(one).first) < (dists.at(two).first);
         });
-        currPos = unvisited[0];
+        currPos = unvisited.at(0);
     }
 }
 

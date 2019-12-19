@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <nlohmann/json.hpp>
 #include "lunarwatcher/objects/Server.hpp"
+#include <optional>
 
 namespace advland {
 
@@ -48,7 +49,7 @@ public:
     }    
     nlohmann::json& getRawJson() { return data; }
     std::string getUid() { return characterId; }
-    std::string getUsername() { return name; }
+    const std::string& getUsername() const { return name; }
 
     bool isMoving() { 
         return data.value("moving", false);
@@ -101,6 +102,11 @@ public:
 
     friend class PlayerSkeleton;
 };
+
+inline bool operator==(const Player& a, const Player& b) {
+    return a.getUsername() == b.getUsername();
+}
+
 #undef PROXY_GETTER
 } // namespace advland
 

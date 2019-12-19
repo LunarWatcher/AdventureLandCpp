@@ -8,8 +8,33 @@
 #include <spdlog/spdlog.h>
 #include <utility>
 #include <vector>
+#include <queue>
+#include "lunarwatcher/math/Logic.hpp"
 
 namespace advland {
+
+
+/**
+ * Smart movement helper class
+ */
+class PathDist {
+public:
+    double dist;
+    std::pair<int, int> position;
+    bool door =  false;
+    PathDist() : dist(0) {}
+    PathDist(double dist) : dist(dist) {}
+    PathDist(std::pair<int, int> pos, double dist) : dist(dist), position(pos) {}
+    PathDist(std::pair<int, int> pos, double dist, bool door) : dist(dist), position(pos), door(door) {}
+};
+
+inline bool operator<(const PathDist& a, const PathDist& b) {
+    return a.dist > b.dist;
+}
+
+inline bool operator==(const PathDist& a, const PathDist& b) {
+    return MovementMath::pythagoras(a.position.first, a.position.second, b.position.first, b.position.second) < ((b.door || a.door) ? 60 : 10);
+}
 
 class MapProcessor {
 private:
@@ -37,19 +62,7 @@ private:
      * What this does is check if the char canMove() to the position. This is only done when the path is
      * found to reduce wasted computations.
      */
-    std::vector<std::pair<int, int>> prunePath(std::vector<std::pair<int, int>> raw, const nlohmann::json& geom);
-
-    /**
-     * Dijkstra helper class
-     */
-    class PathDist {
-    public:
-        double dist;
-        std::optional<std::pair<int, int>> lastPosition;
-        PathDist() : dist(0) {}
-        PathDist(double dist) : dist(dist) {}
-        PathDist(double dist, std::optional<std::pair<int, int>> lastPos) : dist(dist), lastPosition(lastPos) {}
-    };
+    std::vector<std::pair<int, int>> prunePath(const std::vector<std::pair<int, int>>& raw, const nlohmann::json& geom);
 
 public:
     static unsigned long long convertPosToMapIndex(const double& x, const double& y, const double& minX, const double& minY,

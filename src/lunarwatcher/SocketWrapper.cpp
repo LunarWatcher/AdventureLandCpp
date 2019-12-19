@@ -187,7 +187,7 @@ void SocketWrapper::initializeSystem() {
      */
     this->registerEventCallback("correction", [this](const nlohmann::json& event) {
         mLogger->warn("Location corrected!");
-        // TODO 
+        mLogger->warn("{}", event.dump());
     });
     this->registerEventCallback("party_update", [this](const nlohmann::json& event) {
         player.setParty(event["party"]); 
