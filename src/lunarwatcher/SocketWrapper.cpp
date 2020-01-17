@@ -195,6 +195,7 @@ void SocketWrapper::initializeSystem() {
     
     this->registerEventCallback("game_error", [this](const nlohmann::json& event) {
         mLogger->error(event.dump());
+        
         // TODO: Check for "Failed: wait_N_seconds"
     });
     

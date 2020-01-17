@@ -338,7 +338,9 @@ void PlayerSkeleton::useItem(const std::string& item) {
         if (iItem.is_null()) continue;
         if (iItem.find("name") == iItem.end() || !iItem.at("name").is_string()) continue;
         try {
-            auto& iItemData = itemData[iItem.at("name").get<std::string>()];
+            auto name = iItem.at("name").get<std::string>();
+            if (itemData.find(name) == itemData.end()) continue;
+            auto& iItemData = itemData.at(name);
             if (!iItemData.is_null() && iItemData.find("gives") != iItemData.end()) {
                 auto& gives = iItemData.at("gives");
                 for (auto& effect : gives) {
@@ -570,7 +572,7 @@ std::vector<nlohmann::json> PlayerSkeleton::getNearbyHostiles(unsigned long long
 
 nlohmann::json PlayerSkeleton::getNearestMonster(const nlohmann::json& attribs) {
     double closest = 999990;
-    auto& entities = character->getEntities();
+    auto entities = character->getEntities();
     if (entities.size() == 0) {
         return {};
     }

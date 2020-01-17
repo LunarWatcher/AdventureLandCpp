@@ -1,3 +1,6 @@
 [submodule "VSConan"]
 	path = VSConan
 	url = https://github.com/lunarwatcher/vsconan
+[submodule "SConsStandard"]
+	path = SConsStandard
+	url = git@github.com:LunarWatcher/SConsStandard

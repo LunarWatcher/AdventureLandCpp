@@ -1,0 +1,7 @@
+Import("env")
+
+sources = env.Glob("lunarwatcher/*.cpp")
+
+lib = env.Library("AdvLandCpp", sources)
+
+Return("lib")

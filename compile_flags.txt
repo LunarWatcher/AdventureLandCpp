@@ -5,11 +5,14 @@
 -Wno-c++11-narrowing
 -Isrc/
 -IvsInclude/fmt
--IvsInclude/jsonformoderncpp
--IvsInclude/OpenSSL
+-IvsInclude/nlohmann_json
+-IvsInclude/openssl
 -IvsInclude/cpr
 -IvsInclude/spdlog
+-IvsInclude/libcurl
+-IvsInclude/mbedtls
 -IvsInclude/zlib
 -IvsInclude/IXWebSocket
--IvsInclude/uv
+-IvsInclude/libuv
 -IvsInclude/uvw
+-DSPDLOG_FMT_EXTERNAL=1

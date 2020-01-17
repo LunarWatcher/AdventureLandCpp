@@ -7,7 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
-#include <spdlog/sinks/stdout_color_sinks.h>
+#include "spdlog/sinks/stdout_color_sinks.h"
 #include <spdlog/spdlog.h>
 #include <string>
 #include <vector>

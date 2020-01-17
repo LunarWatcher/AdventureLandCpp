@@ -18,10 +18,8 @@ AdvLandClient::AdvLandClient() : AdvLandClient("credentials.json") {}
 AdvLandClient::AdvLandClient(const std::string& credentialFileLocation) {
     std::ifstream creds(credentialFileLocation);
     if (!creds) {
-        mLogger->error("Failed to find credentials.json. To pass the email and password directly, please use "
-                       "AdvLandClient(std::string, std::string). [NOT RECOMMENDED]");
-        mLogger->error("If you intended to use this function, make sure the file exists in the current working "
-                       "directory. If it does exist, make sure the permission are correct.");
+        mLogger->error("Failed to find credentials.json. To pass the email and password directly, please use AdvLandClient(std::string, std::string). [NOT RECOMMENDED]");
+        mLogger->error("If you intended to use this function, make sure the file exists in the current working directory. If it does exist, make sure the permission are correct.");
         throw IOException("Failed to find credentials");
     }
     nlohmann::json tmp;
