@@ -667,7 +667,7 @@ SocketWrapper& PlayerSkeleton::getSocket() { return character->wrapper; }
 bool PlayerSkeleton::isPvp() {
     auto server = character->getServer();
 
-    if (server.has_value() && (*server.value()).isPvp()) {
+    if (server.has_value() && (server.value()).isPvp()) {
         return true;
     }
     auto& cache = character->getClient().getData()["maps"][character->getMap()];
@@ -681,9 +681,33 @@ void PlayerSkeleton::processInternals() {
     if (last == epoch) last = Types::Clock::now();
 
     getSmartHelper().manageFutures();
+    std::map<std::string, nlohmann::json> updateEntities;
 
-    std::lock_guard<std::mutex> _(character->getSocket().getEntityGuard());
+    {
+        // The intermediate map is used to reduce the amount of data races.
+        // Now, it's only between the socket, and this function. This specific
+        // tiny code snippet uses a mutex, that interacts with the inserting
+        // and updating function (entities event). This blocks changes. 
+        // Additionally, a copy is stored in this function, which lets the socket
+        // continue processing right after the copy and clearing of the previous
+        // entities have been handled
+        // This function is also run from a loop, which is blocking in terms of 
+        // other loops and timers. This means while this function is processing, 
+        // no loops will be accessing the entities map. 
+        // Thread safety first, kids!
+        std::lock_guard<std::mutex> lock(character->getSocket().getEntityGuard());
+        updateEntities = character->getSocket().getUpdateEntities();   
+        character->getSocket().getUpdateEntities().clear();
+    }
+
     character->getSocket().deleteEntities();
+
+    auto& entities = character->getSocket().getEntities();
+    for (auto& [id, data] : updateEntities) {
+        if (entities.find(id) != entities.end()) {
+            entities[id].update(data);
+        } else entities[id] = data;
+    }
 
     auto now = Types::Clock::now();
 

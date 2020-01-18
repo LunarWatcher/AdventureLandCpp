@@ -4,7 +4,8 @@
 #include <algorithm>
 #include <string>
 #include <vector>
-#include <iostream> // TODO: remove
+#include <optional>
+
 namespace advland {
 
 class Server {
@@ -60,12 +61,12 @@ public:
         servers.push_back(server); 
     }
     std::vector<Server>& getServers() { return servers; }
-    Server* getServerByName(std::string name) {
+    std::optional<Server> getServerByName(std::string name) {
         for (Server& server : servers) {
             if (server.getName() == name) 
-                return &server;
+                return server;
         }
-        return nullptr;
+        return {};
     }
 };
 } // namespace advland

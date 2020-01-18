@@ -85,8 +85,8 @@ public:
      */
     void startAsync();
 
-    ServerCluster* getServerCluster(std::string identifier);
-    Server* getServerInCluster(std::string clusterIdentifier, std::string serverIdentifier);
+    std::optional<ServerCluster> getServerCluster(std::string identifier);
+    std::optional<Server> getServerInCluster(std::string clusterIdentifier, std::string serverIdentifier);
 
     std::string& getUserId() { return userId; }
     std::string& getAuthToken() { return userAuth; }

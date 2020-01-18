@@ -5,6 +5,7 @@
 #include "math/Logic.hpp"
 #include "utils/ParsingUtils.hpp"
 #include <algorithm>
+#include <regex>
 
 namespace advland {
 
@@ -86,10 +87,10 @@ void SocketWrapper::initializeSystem() {
                     this->player.updateJson(player);
                 }
                 // Avoid data loss by updating the JSON rather than overwriting
-                if (this->entities.find(id) == entities.end())
-                    this->entities[id] = player;
+                if (this->updatedEntities.find(id) == updatedEntities.end())
+                    this->updatedEntities[id] = player;
                 else {
-                    this->entities[id].update(player);
+                    this->updatedEntities[id].update(player);
                 }
             }
         }
@@ -112,10 +113,10 @@ void SocketWrapper::initializeSystem() {
                     monster["hp"] = player.getClient().getData()["monsters"][std::string(monster["mtype"])]["hp"];
                     if (monster.find("max_hp") == monster.end()) monster["max_hp"] = monster["hp"];
                 }
-                if (this->entities.find(id) == entities.end())
-                    this->entities[id] = monster;
+                if (this->updatedEntities.find(id) == updatedEntities.end())
+                    this->updatedEntities[id] = monster;
                 else {
-                    this->entities[id].update(monster);
+                    this->updatedEntities[id].update(monster);
                 }
             }
         }
@@ -130,7 +131,7 @@ void SocketWrapper::initializeSystem() {
         copy["death"] = true;
         onDisappear(copy);
     });
-#define onDisappearConsumer(eventName)                                                                                 \
+#define onDisappearConsumer(eventName) \
     this->registerEventCallback(eventName, [this](const nlohmann::json& event) { onDisappear(event); });
 
     onDisappearConsumer("disappear");
@@ -195,8 +196,18 @@ void SocketWrapper::initializeSystem() {
     
     this->registerEventCallback("game_error", [this](const nlohmann::json& event) {
         mLogger->error(event.dump());
+        if (event.is_string()) {
+            auto evt = event.get<std::string>();
+            std::regex rgx(this->waitRegex);
+            std::smatch matches;
+            if(std::regex_search(evt, matches, rgx)) {
+                int secs = std::stoi(matches[1]);
+                this->reconn.create(secs); 
+            }
+
+        }
         
-        // TODO: Check for "Failed: wait_N_seconds"
+        
     });
     
     this->registerEventCallback("disconnect", [this](const nlohmann::json& event) {
@@ -225,7 +236,7 @@ void SocketWrapper::emit(std::string event, const nlohmann::json& json) {
         // mLogger->info("emitting \"{}\"", i);
         this->webSocket.send(i);
     } else {
-        mLogger->error("Attempting to call emit on a socket that hasn't opened yet.");
+        mLogger->error("{} attempting to call emit on a socket that hasn't opened yet.", this->characterId);
     }
 }
 
@@ -419,7 +430,7 @@ void SocketWrapper::registerEventCallback(std::string event, std::function<void(
 
 void SocketWrapper::onDisappear(const nlohmann::json& event) {
     if (entities.find(event["id"]) != entities.end()) {
-        auto& entity = entities[event["id"].get<std::string>()];
+        auto entity = entities[event["id"].get<std::string>()];
         entity["dead"] = true;
         if (getOrElse(event, "teleport", false)) {
             entity["tpd"] = true;
@@ -427,14 +438,21 @@ void SocketWrapper::onDisappear(const nlohmann::json& event) {
         if (getOrElse(event, "invis", false)) {
             entity["invis"] = true;
         }
+        std::lock_guard<std::mutex> mtx(this->entityGuard);
+        updatedEntities[event["id"].get<std::string>()].update(entity); 
     }
 }
 
-SocketConnectStatusCode SocketWrapper::connect() {
+void SocketWrapper::connect() {
     // Begin the connection process
     this->webSocket.start();
 
-    return SocketConnectStatusCode::SUCCESSFUL;
+}
+
+void SocketWrapper::reconnect() {
+    // Utilizes the player method to properly stop the process
+    this->player.stop();
+    this->player.start();
 }
 
 void SocketWrapper::close() {
@@ -447,7 +465,14 @@ void SocketWrapper::sendPing() {
     this->webSocket.send("2::"); // ping is event 2
 }
 
-std::map<std::string, nlohmann::json>& SocketWrapper::getEntities() { return entities; }
+std::map<std::string, nlohmann::json>& SocketWrapper::getEntities() { 
+    return entities; 
+}
+
+std::map<std::string, nlohmann::json>& SocketWrapper::getUpdateEntities() {
+    return updatedEntities;
+}
+
 std::map<std::string, nlohmann::json>& SocketWrapper::getChests() { return chests; }
 #undef WIDTH_HEIGHT_SCALE
 } // namespace advland

@@ -98,7 +98,7 @@ public:
 
     const nlohmann::json& getParty() { return party; }
 
-    std::optional<Server*> getServer();
+    std::optional<Server> getServer();
 
     friend class PlayerSkeleton;
 };

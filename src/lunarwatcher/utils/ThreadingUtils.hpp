@@ -19,7 +19,7 @@ public:
     using TimerCallback = std::function<void(const uvw::TimerEvent&, uvw::TimerHandle&)>;
     using Millis = std::chrono::milliseconds;
 
-    LoopHelper() { loop = uvw::Loop::create(); }
+    LoopHelper() : loop(uvw::Loop::create()){ }
 
     /**
      * Sets a timeout.

@@ -239,22 +239,38 @@ void AdvLandClient::parseCharacters(nlohmann::json& data) {
     }
 }
 
-ServerCluster* AdvLandClient::getServerCluster(std::string identifier) {
+std::optional<ServerCluster> AdvLandClient::getServerCluster(std::string identifier) {
     for (ServerCluster& cluster : serverClusters) {
-        if (cluster.getRegion() == identifier) return &cluster;
+        if (cluster.getRegion() == identifier) return cluster;
     }
-    return nullptr;
+    return {};
 }
 
-Server* AdvLandClient::getServerInCluster(std::string clusterIdentifier, std::string serverIdentifier) {
-    ServerCluster* cluster = getServerCluster(clusterIdentifier);
-    if (!cluster) return nullptr;
+std::optional<Server> AdvLandClient::getServerInCluster(std::string clusterIdentifier, std::string serverIdentifier) {
+    auto cluster = getServerCluster(clusterIdentifier);
+    if (!cluster) return {};
     return cluster->getServerByName(serverIdentifier);
 }
 
 void AdvLandClient::processInternals() {
     using namespace std::chrono_literals;
     while (running) {
+    
+        for (auto& player : bots) {
+            auto& conn = player->getSocket().reconn;
+            if (!conn) {
+                auto currTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()
+                ).count();
+                auto elapsed = currTime - conn.spawn;
+                if (elapsed >= conn.wait) {
+                    player->getSocket().reconnect();
+                    conn.reconnecting();
+                }
+                
+            }
+        }
+
         std::this_thread::sleep_for(1s);
     }
 }

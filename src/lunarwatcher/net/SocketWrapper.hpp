@@ -7,10 +7,12 @@
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include "lunarwatcher/objects/Server.hpp"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include <spdlog/spdlog.h>
 #include <string>
 #include <vector>
+#include <chrono>
 
 namespace advland {
 
@@ -24,6 +26,33 @@ enum SocketConnectStatusCode {
 typedef std::function<void(const ix::WebSocketMessagePtr&)> RawCallback;
 typedef std::function<void(const nlohmann::json&)> EventCallback;
 
+class ReconnectInfo {
+public: 
+    int wait;
+    long spawn; 
+
+    ReconnectInfo() : wait(0), spawn(0) {}
+
+    void create(int wait) {
+        spawn = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()
+                ).count();
+        this->wait = wait * 1000;
+
+    }
+
+    void reconnecting() {
+        this->wait = 0;
+        this->spawn = 0;
+    }
+
+    
+};
+
+inline bool operator!(ReconnectInfo& i) {
+    return i.wait != 0;
+}
+
 class AdvLandClient;
 class Message;
 class Player;
@@ -31,6 +60,8 @@ class Player;
 class SocketWrapper {
 private:
     static auto inline const mLogger = spdlog::stdout_color_mt("SocketWrapper");
+    static std::string inline const waitRegex = "wait_(\\d+)_seconds";
+    
     ix::WebSocket webSocket;
     AdvLandClient& client;
     Player& player;
@@ -48,12 +79,14 @@ private:
     std::map<std::string, std::vector<EventCallback>> eventCallbacks;
 
     std::map<std::string, nlohmann::json> entities;
-
+    std::map<std::string, nlohmann::json> updatedEntities; 
+    
     std::mutex chestGuard;
     std::mutex deletionGuard;
     std::mutex entityGuard;
 
     std::map<std::string, nlohmann::json> chests;
+    
 
     // Functions
     void triggerInternalEvents(std::string eventName, const nlohmann::json& event);
@@ -70,8 +103,9 @@ private:
      * crash.
      */
     void sanitizeInput(nlohmann::json& entity);
-
+    
 public:
+    ReconnectInfo reconn = {};
     /**
      * Initializes a general, empty SocketWrapper ready to connect.
      * When {@link #connect(std::string)} is called, the socket starts up
@@ -99,14 +133,19 @@ public:
     /**
      *  Connects a user. this should only be run from the Player class
      */
-    SocketConnectStatusCode connect();
+    void connect();
+    void reconnect();
+
     void close();
     void sendPing();
     void emit(std::string event, const nlohmann::json& json = {});
 
     void onDisappear(const nlohmann::json& event);
 
+    void changeServer(Server* server);
+
     std::map<std::string, nlohmann::json>& getEntities();
+    std::map<std::string, nlohmann::json>& getUpdateEntities();
     std::map<std::string, nlohmann::json>& getChests();
 
     bool isOpen() { return webSocket.getReadyState() == ix::ReadyState::Open; }

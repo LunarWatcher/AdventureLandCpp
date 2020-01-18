@@ -61,15 +61,13 @@ int Player::countOpenInventory() {
     return count;
 }
 
-std::optional<Server*> Player::getServer() {
+std::optional<Server> Player::getServer() {
 
     std::string& cluster = server.first;
     std::string& identifier = server.second;
 
-    Server* possible = client.getServerInCluster(cluster, identifier);
-    if (possible != nullptr) return possible;
+    return client.getServerInCluster(cluster, identifier);
 
-    return std::nullopt;
 }
 
 #undef PROXY_GETTER_IMPL

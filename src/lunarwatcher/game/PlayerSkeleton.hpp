@@ -53,9 +53,13 @@ protected:
     void processInternals();
 public:
 
+    PlayerSkeleton() : loop() {
+        loop.setInterval([this](const uvw::TimerEvent&, uvw::TimerHandle&) {
+            this->processInternals();
+        }, 1000.0 / 60.0); 
+    }
 
-
-    ~PlayerSkeleton() {
+    virtual ~PlayerSkeleton() {
         if (uvThread.joinable())
             uvThread.join();
     }
@@ -80,6 +84,7 @@ public:
         uvThread = std::thread([this]() {
             while (running) {
                 loop.getLoop()->run<uvw::Loop::Mode::ONCE>();
+
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
         });
@@ -224,12 +229,6 @@ public:
      */
     void runOnUiThread(std::function<void(const uvw::AsyncEvent&, uvw::AsyncHandle&)> callback);
    
-    std::shared_ptr<uvw::TimerHandle> setMainLoop(LoopHelper::TimerCallback callback, int interval) {
-        return setInterval([callback, this](const auto& event, auto& handle) {
-            processInternals(); 
-            callback(event, handle);
-        }, interval, 0);
-    }
 };
 
 } // namespace advland
