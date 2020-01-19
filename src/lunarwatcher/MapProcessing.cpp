@@ -331,8 +331,7 @@ std::vector<std::pair<int, int>> MapProcessor::prunePath(const std::vector<std::
             oldPos = tmp;
             goto retry;
 
-        } else if (i == rawPath.size() - 1)
-            path.push_back(currPos);
+        }
     }
     return path;
 }
@@ -340,10 +339,10 @@ std::vector<std::pair<int, int>> MapProcessor::prunePath(const std::vector<std::
 bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std::string currMap) {
     if (!smart.canRun()) return false;
     auto& character = player.getCharacter();
-    if (smart.getTargetMap() == character->getMap() &&
+    if ((smart.getTargetMap() == character->getMap() &&
         canMove(character->getX(), character->getY(), smart.getTargetX(), smart.getTargetY(),
-                player.getGameData()["geometry"][character->getMap()]) 
-            ) {
+                player.getGameData()["geometry"][character->getMap()])) 
+            || (character->getX() == smart.getTargetX() && character->getY() == smart.getTargetY())) {
         smart.pushNodes({std::make_pair(smart.getTargetX(), smart.getTargetY())});
         return true;
     }
@@ -388,7 +387,7 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
         auto& map = this->maps[currMap];
 
         PathDist start(currPos, 0);
-        PathDist end(targetPos, 0, true);
+        PathDist end(targetPos, 0, currMap != smart.getTargetMap());
         std::priority_queue<PathDist> unvisited;
         std::map<std::pair<int, int>, float> costs;
         std::map<std::pair<int, int>, std::pair<int, int>> paths;
@@ -401,18 +400,20 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
                 
                 auto pos = currNode.position;
                 std::vector<std::pair<int, int>> path;
-                if (!end.door)
-                    path.push_back(end.position);
+
+                path.push_back(end.position);
 
                 while (!(pos == start.position)) {
                     path.push_back(pos);
                     pos = paths.at(pos); 
-
                 }
 
                 std::reverse(path.begin(), path.end());
-                if (path.size() == 0)
+                if (path.size() == 0) {
+                    mLogger->error("Aborting: path not found. Curr: {}, {} at {}. XY target: {}, {} at {}", character->getX(), character->getY(), character->getMap(), smart.getTargetX(), smart.getTargetY(), smart.getTargetMap());
+                    
                     throw std::runtime_error("Path is empty?");
+                }
                 auto vec = prunePath(path, geom);
                 smart.pushNodes(vec);
                 smart.bumpOffset();
@@ -442,7 +443,7 @@ bool MapProcessor::dijkstra(PlayerSkeleton& player, SmartMoveHelper& smart, std:
 
                 if (newCost < maps::get(costs, neighbor, std::numeric_limits<float>::infinity())) {
                     hCost = MovementMath::pythagoras(neighbor.first, neighbor.second, end.position.first, end.position.second);
-                    float priority = newCost + hCost;
+                    float priority = newCost + hCost + MovementMath::pythagoras(neighbor.first, neighbor.second, currPos.first, currPos.second);
                     unvisited.push(PathDist(neighbor, priority));
 
                     costs[neighbor] = newCost;
