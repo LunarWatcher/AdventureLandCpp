@@ -6,7 +6,9 @@ These require special handling. As a general rule, these are POST. However, they
 
 * `/api/signup_or_login` - the login endpoint. Expects email and password, as well as `"only_login": true` in a map called `arguments` passed as formData.
 * `/api/servers_and_characters` - retrieves the characters for the associated account, as well as servers. Requires login. 
-* `/api/get_servers` - retrieves the servers
+* `/api/get_servers` - retrieves the servers. Requires login
+
+Note: the fields stating "requires login" takes an "auth" POST form key with the session cookie
 
 # GET
 * `/data.js` - returns a JS variable containing the game data. 
